@@ -1102,12 +1102,14 @@ const Editor = () => {
                           <div className="flex items-center justify-between mb-1">
                             <span className="text-[9px] text-slate-500 font-semibold">Voice Age</span>
                             <div className="flex items-center gap-1">
-                              <input type="number" min={5} max={80} value={Math.round(30 - (actor.pitch || 0) * 5)}
-                                onChange={(e) => {
+                              <input type="number" min={5} max={80}
+                                defaultValue={Math.round(30 - (actor.pitch || 0) * 5)}
+                                onBlur={(e) => {
                                   const age = Math.max(5, Math.min(80, Number(e.target.value) || 30));
                                   const pitch = Math.round((30 - age) / 5);
                                   updateActor(actor.id, 'pitch', Math.max(-6, Math.min(6, pitch)));
                                 }}
+                                onKeyDown={(e) => { if (e.key === 'Enter') e.target.blur(); }}
                                 data-testid={`actor-age-input-${actor.id}`}
                                 className="w-10 bg-white/[0.05] border border-white/[0.1] rounded text-center text-[10px] text-white font-bold py-0.5 outline-none focus:border-amber-500/40" />
                               <span className="text-[9px] text-slate-500">yrs</span>
