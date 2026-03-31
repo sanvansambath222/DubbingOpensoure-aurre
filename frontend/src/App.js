@@ -699,13 +699,20 @@ const Editor = () => {
                       </div>
 
                       {/* Speaking info */}
-                      <div className="bg-amber-500/8 border border-amber-500/15 rounded-md px-2.5 py-1.5 mb-2 flex items-center justify-between">
-                        <span className="text-amber-400 text-[10px] font-semibold">
-                          {segCount} {segCount === 1 ? 'line' : 'lines'}
-                        </span>
-                        <span className="text-amber-300 text-[11px] font-bold">
-                          {totalLen < 60 ? `${totalLen.toFixed(1)}s` : `${Math.floor(totalLen / 60)}m ${Math.round(totalLen % 60)}s`}
-                        </span>
+                      <div className="bg-amber-500/8 border border-amber-500/15 rounded-md px-2.5 py-2 mb-2 space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-amber-400 text-[10px] font-semibold">
+                            {segCount} {segCount === 1 ? 'line' : 'lines'}
+                          </span>
+                          <span className="text-amber-300 text-[11px] font-bold">
+                            {totalLen < 60 ? `${totalLen.toFixed(1)}s` : `${Math.floor(totalLen / 60)}m ${Math.round(totalLen % 60)}s`}
+                          </span>
+                        </div>
+                        {actorSegs.length > 0 && (
+                          <div className="text-[9px] text-amber-400/50 font-mono">
+                            {fmt(actorSegs[0]?.start || 0)} ~ {fmt(actorSegs[actorSegs.length - 1]?.end || 0)}
+                          </div>
+                        )}
                       </div>
 
                       {/* Voice */}

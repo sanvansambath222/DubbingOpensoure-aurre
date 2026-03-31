@@ -361,6 +361,42 @@ async def transcribe_segments(project_id: str, authorization: str = Header(None)
             cmd = ["ffmpeg", "-y", "-i", input_path, "-vn", "-acodec", "pcm_s16le", "-ar", "16000", "-ac", "1", audio_path]
             subprocess.run(cmd, capture_output=True)
 
+            # Helper: Analyze voice pitch per segment for gender detection
+            def analyze_pitch(wav_path, start_sec, end_sec):
+                """Extract audio segment and analyze pitch to detect male/female voice"""
+                import wave
+                import struct
+                try:
+                    with wave.open(wav_path, 'r') as wf:
+                        rate = wf.getframerate()
+                        start_frame = int(start_sec * rate)
+                        end_frame = int(end_sec * rate)
+                        n_frames = end_frame - start_frame
+                        if n_frames <= 0:
+                            return None
+                        wf.setpos(max(0, start_frame))
+                        frames = wf.readframes(min(n_frames, rate * 10))
+                        samples = struct.unpack(f'<{len(frames)//2}h', frames)
+                        if len(samples) < 320:
+                            return None
+                        
+                        # Zero-crossing rate for pitch estimation
+                        crossings = 0
+                        for i in range(1, len(samples)):
+                            if (samples[i] >= 0) != (samples[i-1] >= 0):
+                                crossings += 1
+                        
+                        duration = len(samples) / rate
+                        if duration <= 0:
+                            return None
+                        zcr = crossings / (2 * duration)
+                        
+                        # Male voice: ~85-180 Hz, Female voice: ~165-255 Hz
+                        return "male" if zcr < 160 else "female"
+                except Exception as e:
+                    logger.warning(f"Pitch analysis failed: {e}")
+                    return None
+
             stt = OpenAISpeechToText(api_key=EMERGENT_LLM_KEY)
             with open(audio_path, "rb") as audio_file:
                 response = await stt.transcribe(file=audio_file, model="whisper-1", language="zh", response_format="verbose_json")
@@ -379,28 +415,43 @@ async def transcribe_segments(project_id: str, authorization: str = Header(None)
                     "voice": "sophea"
                 })
 
-            # Use GPT to detect ALL speakers and genders from the dialogue
+            # Step 1: Analyze voice pitch for each segment
+            pitch_genders = []
+            for seg_data in segments:
+                pg = analyze_pitch(audio_path, seg_data["start"], seg_data["end"])
+                pitch_genders.append(pg)
+            logger.info(f"Audio pitch analysis: {pitch_genders}")
+
+            # Step 2: Use GPT to detect speakers from dialogue + pitch hints
             if segments:
+                # Build pitch info string for GPT
+                pitch_hints = []
+                for i, pg in enumerate(pitch_genders):
+                    if pg:
+                        pitch_hints.append(f"Line {i}: audio pitch suggests {pg} voice")
+                pitch_info = "\n".join(pitch_hints) if pitch_hints else "No audio pitch data available."
+
                 detect_chat = LlmChat(
                     api_key=EMERGENT_LLM_KEY,
                     session_id=f"detect_{project_id}_{uuid.uuid4().hex[:6]}",
                     system_message="""You are an expert at analyzing Chinese dialogue to identify different speakers.
 
-Your task: Analyze the dialogue lines below and determine:
+Your task: Analyze the dialogue lines AND the audio pitch analysis below to determine:
 1. How many different people are speaking (could be 1, 2, 3, or more)
 2. Which person speaks each line
 3. The gender of each person (male = boy/man, female = girl/woman)
 
 IMPORTANT RULES:
+- The audio pitch analysis gives hints about voice gender - USE THIS as primary signal
 - Look for conversation patterns: questions and answers are usually different people
-- Look for gender clues: 他(he)/她(she), names, 先生(Mr)/女士(Ms), voice/tone descriptions
+- Look for gender clues in text: 他(he)/她(she), names, 先生(Mr)/女士(Ms)
 - If someone calls another person by name or title, they are different speakers
-- Narration or description lines may be a separate narrator
-- If a video has ONLY one speaker (like a presentation or monologue), assign ALL lines to SPEAKER_00
-- If there are clearly 2+ people having a conversation, use SPEAKER_00, SPEAKER_01, SPEAKER_02, etc.
-- Same speaker across multiple consecutive lines should have the SAME speaker ID
+- If a video has ONLY one speaker (monologue), assign ALL lines to SPEAKER_00
+- If there are 2+ people talking, use SPEAKER_00, SPEAKER_01, SPEAKER_02, etc.
+- Same speaker across consecutive lines = SAME speaker ID
+- When audio pitch and text clues agree, be confident. When they disagree, trust audio pitch more.
 
-Return ONLY a valid JSON array with NO extra text:
+Return ONLY a valid JSON array:
 [{"idx": 0, "speaker": "SPEAKER_00", "gender": "male"}, {"idx": 1, "speaker": "SPEAKER_01", "gender": "female"}, ...]
 
 Every segment index must be included."""
@@ -414,7 +465,7 @@ Every segment index must be included."""
                 all_text = "\n".join(dialogue_lines)
                 
                 try:
-                    result_text = await detect_chat.send_message(UserMessage(text=f"Analyze this Chinese dialogue and identify each speaker:\n\n{all_text}"))
+                    result_text = await detect_chat.send_message(UserMessage(text=f"AUDIO PITCH ANALYSIS:\n{pitch_info}\n\nDIALOGUE LINES:\n{all_text}\n\nIdentify each speaker and gender:"))
                     logger.info(f"GPT detection result: {result_text[:500]}")
                     
                     if "[" in result_text:
@@ -443,12 +494,23 @@ Every segment index must be included."""
                         segments[i]["gender"] = "female" if i % 2 == 0 else "male"
                         segments[i]["voice"] = "sophea" if i % 2 == 0 else "dara"
 
-            # Build actors from unique speakers — simple "Man" / "Woman" labels
+            # Build actors from unique speakers with speaking time ranges
             speaker_info = {}
             for seg in segments:
                 spk = seg.get("speaker", "SPEAKER_00")
                 if spk not in speaker_info:
-                    speaker_info[spk] = {"gender": seg.get("gender", "female")}
+                    speaker_info[spk] = {
+                        "gender": seg.get("gender", "female"),
+                        "first_start": seg.get("start", 0),
+                        "last_end": seg.get("end", 0),
+                        "total_time": 0,
+                        "line_count": 0
+                    }
+                info = speaker_info[spk]
+                info["last_end"] = max(info["last_end"], seg.get("end", 0))
+                info["first_start"] = min(info["first_start"], seg.get("start", 0))
+                info["total_time"] += (seg.get("end", 0) - seg.get("start", 0))
+                info["line_count"] += 1
 
             man_count = 0
             woman_count = 0
@@ -465,7 +527,11 @@ Every segment index must be included."""
                     "label": label,
                     "gender": info["gender"],
                     "voice": "dara" if info["gender"] == "male" else "sophea",
-                    "custom_voice": None
+                    "custom_voice": None,
+                    "total_speaking_time": round(info["total_time"], 1),
+                    "line_count": info["line_count"],
+                    "first_start": round(info["first_start"], 1),
+                    "last_end": round(info["last_end"], 1)
                 })
 
             await db.projects.update_one(
