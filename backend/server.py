@@ -709,7 +709,7 @@ async def generate_audio_segments(project_id: str, authorization: str = Header(N
             
             try:
                 tts_path = os.path.join(tempfile.gettempdir(), f"tts_{uuid.uuid4().hex}.mp3")
-                communicate = edge_tts.Communicate(seg["translated"], voice=edge_voice, rate="+3%")
+                communicate = edge_tts.Communicate(seg["translated"], voice=edge_voice, rate="+2%")
                 await communicate.save(tts_path)
                 audio_seg = AudioSegment.from_file(tts_path, format="mp3")
                 segment_audio_pairs.append((seg, audio_seg))
