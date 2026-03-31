@@ -951,15 +951,19 @@ const Editor = () => {
                 className="w-full bg-[#141415] border border-[#27272A] text-white px-4 py-3 text-sm focus:outline-none focus:border-[#0055FF] transition-all"
               >
                 <optgroup label="សំឡេងស្រី (Female)">
-                  <option value="sophea">Sophea - សោភា</option>
-                  <option value="chanthy">Chanthy - ចន្ធី</option>
+                  <option value="sophea">Sophea - សោភា (ស្រី)</option>
+                  <option value="chanthy">Chanthy - ចន្ធី (ស្រី)</option>
+                  <option value="bopha">Bopha - បុប្ផា (ស្រី)</option>
+                  <option value="srey">Srey - ស្រី (ស្រី)</option>
                 </optgroup>
                 <optgroup label="សំឡេងប្រុស (Male)">
-                  <option value="dara">Dara - តារា</option>
-                  <option value="virak">Virak - វីរៈ</option>
+                  <option value="dara">Dara - តារា (ប្រុស)</option>
+                  <option value="virak">Virak - វីរៈ (ប្រុស)</option>
+                  <option value="sokha">Sokha - សុខា (ប្រុស)</option>
+                  <option value="pich">Pich - ពេជ្រ (ប្រុស)</option>
                 </optgroup>
               </select>
-              <p className="text-xs text-[#52525B] mt-2">Real Khmer pronunciation powered by Google Cloud</p>
+              <p className="text-xs text-[#34D399] mt-2">✓ Real Khmer pronunciation powered by CAMB.AI</p>
             </div>
           </div>
         </div>

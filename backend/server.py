@@ -33,6 +33,9 @@ ELEVENLABS_API_KEY = os.environ.get('ELEVENLABS_API_KEY')
 # Google Cloud API Key for Khmer TTS
 GOOGLE_CLOUD_API_KEY = os.environ.get('GOOGLE_CLOUD_API_KEY')
 
+# CAMB.AI API Key for real Khmer TTS
+CAMB_API_KEY = os.environ.get('CAMB_API_KEY')
+
 # Object Storage with local fallback
 STORAGE_URL = "https://integrations.emergentagent.com/objstore/api/v1/storage"
 APP_NAME = "khmer-dubbing"
@@ -541,8 +544,9 @@ async def translate_project(project_id: str, authorization: str = Header(None)):
 # Generate dubbed audio
 @api_router.post("/projects/{project_id}/generate-audio")
 async def generate_audio(project_id: str, authorization: str = Header(None)):
-    """Generate Khmer dubbed audio using Google Cloud TTS (real Khmer voice)"""
+    """Generate Khmer dubbed audio using CAMB.AI (real Khmer voice)"""
     import requests
+    import time
     
     user = await get_current_user(authorization)
     
@@ -559,72 +563,74 @@ async def generate_audio(project_id: str, authorization: str = Header(None)):
     )
     
     try:
-        # Use Google Cloud TTS for REAL Khmer voice
-        # Voice options: km-KH-Standard-A (female), km-KH-Standard-B (male)
-        voice_map = {
-            # Female voices
-            "sophea": "km-KH-Standard-A",
-            "chanthy": "km-KH-Standard-A",
-            "sarah": "km-KH-Standard-A",
-            "laura": "km-KH-Standard-A",
-            "alice": "km-KH-Standard-A",
-            "matilda": "km-KH-Standard-A",
-            "jessica": "km-KH-Standard-A",
-            "bella": "km-KH-Standard-A",
-            "lily": "km-KH-Standard-A",
-            # Male voices
-            "dara": "km-KH-Standard-B",
-            "virak": "km-KH-Standard-B",
-            "roger": "km-KH-Standard-B",
-            "charlie": "km-KH-Standard-B",
-            "george": "km-KH-Standard-B",
-            "callum": "km-KH-Standard-B",
-            "harry": "km-KH-Standard-B",
-            "liam": "km-KH-Standard-B",
-            "chris": "km-KH-Standard-B",
-            "brian": "km-KH-Standard-B",
-            "daniel": "km-KH-Standard-B",
-            "adam": "km-KH-Standard-B",
-            "bill": "km-KH-Standard-B",
-            "river": "km-KH-Standard-A",
-            # Legacy
-            "alloy": "km-KH-Standard-A",
-            "echo": "km-KH-Standard-B",
-            "fable": "km-KH-Standard-A",
-            "onyx": "km-KH-Standard-B",
-            "nova": "km-KH-Standard-A",
-            "shimmer": "km-KH-Standard-A"
+        # Use CAMB.AI for REAL Khmer voice
+        # Gender: 1=Male, 2=Female
+        voice_gender = {
+            "sophea": 2, "chanthy": 2, "bopha": 2, "srey": 2,
+            "dara": 1, "virak": 1, "sokha": 1, "pich": 1
         }
         
-        voice_name = voice_map.get(project.get("voice", "sophea"), "km-KH-Standard-A")
+        gender = voice_gender.get(project.get("voice", "sophea"), 2)
         
-        # Google Cloud TTS API request
-        url = f"https://texttospeech.googleapis.com/v1/text:synthesize?key={GOOGLE_CLOUD_API_KEY}"
+        headers = {
+            "x-api-key": CAMB_API_KEY,
+            "Content-Type": "application/json"
+        }
         
+        # Step 1: Submit TTS job
         payload = {
-            "input": {"text": project["translated_text"]},
-            "voice": {
-                "languageCode": "km-KH",
-                "name": voice_name
-            },
-            "audioConfig": {
-                "audioEncoding": "MP3",
-                "speakingRate": 1.0,
-                "pitch": 0.0
-            }
+            "text": project["translated_text"],
+            "voice_id": 147319,  # Default voice
+            "language": 92,      # Khmer (Cambodia) language ID
+            "gender": gender
         }
         
-        response = requests.post(url, json=payload, timeout=60)
+        response = requests.post(
+            "https://client.camb.ai/apis/tts",
+            json=payload,
+            headers=headers,
+            timeout=30
+        )
         response.raise_for_status()
+        result_data = response.json()
+        task_id = result_data.get("task_id")
         
-        # Decode base64 audio
-        import base64
-        audio_content = response.json().get("audioContent")
-        audio_bytes = base64.b64decode(audio_content)
+        if not task_id:
+            raise Exception(f"No task_id in response: {result_data}")
+        
+        # Step 2: Poll for completion
+        max_attempts = 60
+        for attempt in range(max_attempts):
+            status_resp = requests.get(
+                f"https://client.camb.ai/apis/tts/{task_id}",
+                headers=headers,
+                timeout=30
+            )
+            status_data = status_resp.json()
+            status = status_data.get("status")
+            
+            if status == "SUCCESS":
+                run_id = status_data.get("run_id")
+                break
+            elif status == "FAILURE":
+                raise Exception(f"TTS failed: {status_data}")
+            
+            time.sleep(2)
+        else:
+            raise Exception("TTS timeout - job did not complete")
+        
+        # Step 3: Download audio
+        audio_resp = requests.get(
+            f"https://client.camb.ai/apis/tts-result/{run_id}",
+            headers=headers,
+            timeout=60
+        )
+        audio_resp.raise_for_status()
+        audio_bytes = audio_resp.content
         
         # Upload to storage
-        path = f"{APP_NAME}/audio/{user.user_id}/{project_id}/dubbed_{uuid.uuid4().hex}.mp3"
-        result = put_object(path, audio_bytes, "audio/mpeg")
+        path = f"{APP_NAME}/audio/{user.user_id}/{project_id}/dubbed_{uuid.uuid4().hex}.wav"
+        result = put_object(path, audio_bytes, "audio/wav")
         
         await db.projects.update_one(
             {"project_id": project_id},
@@ -637,26 +643,7 @@ async def generate_audio(project_id: str, authorization: str = Header(None)):
         
         return await db.projects.find_one({"project_id": project_id}, {"_id": 0})
     except Exception as e:
-        logger.error(f"Google Cloud TTS error: {str(e)}")
-        await db.projects.update_one(
-            {"project_id": project_id},
-            {"$set": {"status": "error", "updated_at": datetime.now(timezone.utc).isoformat()}}
-        )
-        raise HTTPException(status_code=500, detail=str(e))
-        result = put_object(path, audio_bytes, "audio/mpeg")
-        
-        await db.projects.update_one(
-            {"project_id": project_id},
-            {"$set": {
-                "dubbed_audio_path": result["path"],
-                "status": "audio_ready",
-                "updated_at": datetime.now(timezone.utc).isoformat()
-            }}
-        )
-        
-        return await db.projects.find_one({"project_id": project_id}, {"_id": 0})
-    except Exception as e:
-        logger.error(f"ElevenLabs TTS error: {str(e)}")
+        logger.error(f"CAMB.AI TTS error: {str(e)}")
         await db.projects.update_one(
             {"project_id": project_id},
             {"$set": {"status": "error", "updated_at": datetime.now(timezone.utc).isoformat()}}
