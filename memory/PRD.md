@@ -18,7 +18,7 @@ Build Dubbing China to Khmer using python website following top trending design 
 - **Fonts**: Outfit (headings), IBM Plex Sans (body), JetBrains Mono (code/timestamps)
 - **Colors**: White/Zinc-950 backgrounds, zinc text, emerald accents, sharp corners (rounded-sm)
 - **Dark Mode**: Full dark mode with toggle button (Sun/Moon icons), persists in localStorage
-- **Actor cards**: Blue gradient (Boy), Pink gradient (Girl) with thick colored borders
+- **Actor cards**: White bg with strong blue left-border (Boy), pink left-border (Girl) in light mode. Zinc-800 bg in dark mode.
 - **Frontend**: React 19, Tailwind CSS (darkMode: class), Phosphor Icons, Framer Motion
 - **Backend**: FastAPI, MongoDB, Python
 - **Integrations**:
@@ -78,6 +78,7 @@ Build Dubbing China to Khmer using python website following top trending design 
 - [x] Dark Mode with toggle (Sun/Moon icon) across all pages
 - [x] Theme persistence in localStorage
 - [x] Landing page, Dashboard, Editor, SharedProject all support dark mode
+- [x] Actor card color fix - removed washed-out gradients, now clean white/dark bg with strong blue/pink accent borders
 
 ## Prioritized Backlog
 

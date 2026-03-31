@@ -1061,8 +1061,10 @@ const Editor = () => {
                   const mins = Math.floor(actorTotal / 60);
                   const secs = Math.round(actorTotal % 60);
                   return (
-                    <div key={`summary-${actor.id}`} className={`flex items-center gap-1.5 px-3 py-1 rounded-sm text-[11px] font-bold ${
-                      isMale ? 'bg-blue-500/10 text-blue-400 border border-blue-500/15' : 'bg-pink-500/10 text-pink-400 border border-pink-500/15'
+                    <div key={`summary-${actor.id}`} className={`flex items-center gap-1.5 px-3 py-1 rounded-sm text-[11px] font-bold border ${
+                      isMale
+                        ? (d ? 'bg-blue-900/30 text-blue-300 border-blue-700/40' : 'bg-blue-50 text-blue-700 border-blue-200')
+                        : (d ? 'bg-pink-900/30 text-pink-300 border-pink-700/40' : 'bg-pink-50 text-pink-700 border-pink-200')
                     }`}>
                       {isMale ? <GenderMale className="w-3 h-3" weight="bold" /> : <GenderFemale className="w-3 h-3" weight="bold" />}
                       {actor.label}:
@@ -1091,43 +1093,47 @@ const Editor = () => {
                   const segCount = actorSegs.length;
                   return (
                     <div key={actor.id} data-testid={`actor-card-${actor.id}`}
-                      className={`min-w-[230px] rounded-sm p-3.5 transition-all flex-shrink-0 border-2 ${
+                      className={`min-w-[230px] rounded-sm p-3.5 transition-all flex-shrink-0 border-l-4 border ${
                         isMale
-                          ? 'bg-gradient-to-br from-blue-950/40 to-blue-900/20 border-blue-500/30 hover:border-blue-400/50'
-                          : 'bg-gradient-to-br from-pink-950/40 to-pink-900/20 border-pink-500/30 hover:border-pink-400/50'
+                          ? (d ? 'bg-zinc-800 border-zinc-700 border-l-blue-500' : 'bg-white border-zinc-200 border-l-blue-500')
+                          : (d ? 'bg-zinc-800 border-zinc-700 border-l-pink-500' : 'bg-white border-zinc-200 border-l-pink-500')
                       }`}>
                       {/* Gender banner */}
                       <div className={`flex items-center gap-2 mb-3 pb-2.5 border-b ${
-                        isMale ? 'border-blue-500/15' : 'border-pink-500/15'
+                        d ? 'border-zinc-700' : 'border-zinc-200'
                       }`}>
                         <div className={`w-10 h-10 rounded-sm flex items-center justify-center ${
-                          isMale ? 'bg-blue-500/20' : 'bg-pink-500/20'
+                          isMale ? 'bg-blue-100 dark:bg-blue-900/40' : 'bg-pink-100 dark:bg-pink-900/40'
                         }`}>
                           {isMale
-                            ? <GenderMale className="w-5 h-5 text-blue-400" weight="bold" />
-                            : <GenderFemale className="w-5 h-5 text-pink-400" weight="bold" />
+                            ? <GenderMale className="w-5 h-5 text-blue-600 dark:text-blue-400" weight="bold" />
+                            : <GenderFemale className="w-5 h-5 text-pink-600 dark:text-pink-400" weight="bold" />
                           }
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className={`font-semibold text-xs truncate ${d?'text-white':'text-zinc-950'}`}>{actor.label || actor.id}</p>
+                          <p className={`font-semibold text-xs truncate ${d?'text-white':'text-zinc-900'}`}>{actor.label || actor.id}</p>
                           <div className="flex items-center gap-1.5 mt-0.5">
                             <select data-testid={`actor-gender-${actor.id}`} value={actor.gender || 'female'}
                               onChange={(e) => updateActor(actor.id, 'gender', e.target.value)}
                               className={`text-[10px] font-bold border-none outline-none cursor-pointer rounded px-1.5 py-0.5 ${
-                                isMale ? 'bg-blue-500/20 text-blue-300' : 'bg-pink-500/20 text-pink-300'
+                                isMale
+                                  ? (d ? 'bg-blue-900/50 text-blue-300' : 'bg-blue-100 text-blue-700')
+                                  : (d ? 'bg-pink-900/50 text-pink-300' : 'bg-pink-100 text-pink-700')
                               }`}>
                               <option value="female">Girl</option>
                               <option value="male">Boy</option>
                             </select>
                             {actor.age && (
                               <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded ${
-                                isMale ? 'bg-blue-500/10 text-blue-400/70' : 'bg-pink-500/10 text-pink-400/70'
+                                isMale
+                                  ? (d ? 'bg-blue-900/40 text-blue-300' : 'bg-blue-50 text-blue-600')
+                                  : (d ? 'bg-pink-900/40 text-pink-300' : 'bg-pink-50 text-pink-600')
                               }`} data-testid={`actor-age-${actor.id}`}>
                                 ~{actor.age}
                               </span>
                             )}
                             {actor.role && (
-                              <span className="text-[9px] text-zinc-700/60 bg-cyan-500/8 px-1.5 py-0.5 rounded font-medium" data-testid={`actor-role-${actor.id}`}>
+                              <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${d?'bg-cyan-900/30 text-cyan-300':'bg-cyan-50 text-cyan-700'}`} data-testid={`actor-role-${actor.id}`}>
                                 {actor.role}
                               </span>
                             )}
@@ -1136,19 +1142,21 @@ const Editor = () => {
                       </div>
 
                       {/* Speaking info */}
-                      <div className={`rounded-sm px-2.5 py-2 mb-2 space-y-1 ${
-                        isMale ? 'bg-blue-500/8 border border-blue-500/10' : 'bg-pink-500/8 border border-pink-500/10'
+                      <div className={`rounded-sm px-2.5 py-2 mb-2 space-y-1 border ${
+                        isMale
+                          ? (d ? 'bg-blue-900/20 border-blue-800/30' : 'bg-blue-50 border-blue-200')
+                          : (d ? 'bg-pink-900/20 border-pink-800/30' : 'bg-pink-50 border-pink-200')
                       }`}>
                         <div className="flex items-center justify-between">
-                          <span className={`text-[10px] font-semibold ${isMale ? 'text-blue-400' : 'text-pink-400'}`}>
+                          <span className={`text-[10px] font-semibold ${isMale ? (d?'text-blue-300':'text-blue-600') : (d?'text-pink-300':'text-pink-600')}`}>
                             {segCount} {segCount === 1 ? 'line' : 'lines'}
                           </span>
-                          <span className={`text-[11px] font-bold ${isMale ? 'text-blue-300' : 'text-pink-300'}`}>
+                          <span className={`text-[11px] font-bold ${isMale ? (d?'text-blue-200':'text-blue-700') : (d?'text-pink-200':'text-pink-700')}`}>
                             {totalLen < 60 ? `${totalLen.toFixed(1)}s` : `${Math.floor(totalLen / 60)}m ${Math.round(totalLen % 60)}s`}
                           </span>
                         </div>
                         {actorSegs.length > 0 && (
-                          <div className={`text-[9px] font-mono ${isMale ? 'text-blue-400/40' : 'text-pink-400/40'}`}>
+                          <div className={`text-[9px] font-mono ${d?'text-zinc-400':'text-zinc-500'}`}>
                             {fmt(actorSegs[0]?.start || 0)} ~ {fmt(actorSegs[actorSegs.length - 1]?.end || 0)}
                           </div>
                         )}
@@ -1160,7 +1168,7 @@ const Editor = () => {
                           <select data-testid={`actor-voice-${actor.id}`}
                             value={actor.voice || (isMale ? 'dara' : 'sophea')}
                             onChange={(e) => updateActor(actor.id, 'voice', e.target.value)}
-                            className="w-full bg-zinc-50 text-slate-300 text-[11px] px-2 py-1.5 border border-black/10 rounded-md outline-none">
+                            className={`w-full text-[11px] px-2 py-1.5 border rounded-md outline-none ${d?'bg-zinc-700 text-zinc-200 border-zinc-600':'bg-zinc-50 text-zinc-700 border-zinc-300'}`}>
                             {(isMale ? maleVoices : femaleVoices).map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
                           </select>
                         )}
@@ -1168,7 +1176,7 @@ const Editor = () => {
                         {/* Per-actor Voice Age */}
                         <div>
                           <div className="flex items-center justify-between mb-1">
-                            <span className="text-[9px] text-zinc-500 font-semibold">Voice Age</span>
+                            <span className={`text-[9px] font-semibold ${d?'text-zinc-400':'text-zinc-600'}`}>Voice Age</span>
                             <div className="flex items-center gap-1">
                               <input type="number" min={5} max={80}
                                 defaultValue={actor.age ? parseInt(actor.age) || 30 : Math.round(30 - (actor.pitch || 0) * 5)}
@@ -1179,40 +1187,40 @@ const Editor = () => {
                                 }}
                                 onKeyDown={(e) => { if (e.key === 'Enter') e.target.blur(); }}
                                 data-testid={`actor-age-input-${actor.id}`}
-                                className="w-10 bg-zinc-100 border border-black/10 rounded text-center text-[10px] text-zinc-950 font-bold py-0.5 outline-none focus:border-amber-500/40" />
-                              <span className="text-[9px] text-zinc-500">yrs</span>
+                                className={`w-10 border rounded text-center text-[10px] font-bold py-0.5 outline-none ${d?'bg-zinc-700 border-zinc-600 text-white focus:border-amber-400':'bg-white border-zinc-300 text-zinc-900 focus:border-amber-500'}`} />
+                              <span className={`text-[9px] ${d?'text-zinc-400':'text-zinc-500'}`}>yrs</span>
                             </div>
                           </div>
                         </div>
                         {actor.custom_voice ? (
-                          <div className="flex items-center gap-1.5 bg-green-500/8 border border-green-500/15 px-2.5 py-1.5 rounded-md">
-                            <CheckCircle className="w-3.5 h-3.5 text-emerald-700 flex-shrink-0" weight="fill" />
-                            <span className="text-emerald-700 text-[10px] font-semibold flex-1">Your Voice</span>
+                          <div className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border ${d?'bg-emerald-900/20 border-emerald-700/30':'bg-emerald-50 border-emerald-200'}`}>
+                            <CheckCircle className={`w-3.5 h-3.5 flex-shrink-0 ${d?'text-emerald-400':'text-emerald-600'}`} weight="fill" />
+                            <span className={`text-[10px] font-semibold flex-1 ${d?'text-emerald-300':'text-emerald-700'}`}>Your Voice</span>
                             <button data-testid={`actor-remove-voice-${actor.id}`} onClick={() => removeActorVoice(actor.id)}
-                              className="text-red-400/60 hover:text-red-600 text-[10px]">Remove</button>
+                              className="text-red-400 hover:text-red-600 text-[10px]">Remove</button>
                           </div>
                         ) : (
                           <div>
                             {recordingActorId === actor.id ? (
                               <button onClick={stopRecording} data-testid={`actor-stop-record-${actor.id}`}
-                                className="w-full flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-red-500/15 border border-red-500/25 text-red-400 text-[10px] font-semibold rounded-md animate-pulse">
+                                className="w-full flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 text-[10px] font-semibold rounded-md animate-pulse">
                                 <Stop className="w-3 h-3" weight="fill" /> Stop ({recordingTime.toFixed(1)}s)
                               </button>
                             ) : (
                               <div className="flex gap-1.5">
                                 <label data-testid={`actor-upload-voice-${actor.id}`}
-                                  className="cursor-pointer flex-1 flex items-center justify-center gap-1 px-2 py-1.5 bg-cyan-500/8 border border-cyan-500/15 text-zinc-700 text-[10px] font-semibold hover:bg-zinc-950/5 transition-colors rounded-md">
+                                  className={`cursor-pointer flex-1 flex items-center justify-center gap-1 px-2 py-1.5 border text-[10px] font-semibold transition-colors rounded-md ${d?'bg-zinc-700 border-zinc-600 text-zinc-200 hover:bg-zinc-600':'bg-zinc-50 border-zinc-300 text-zinc-700 hover:bg-zinc-100'}`}>
                                   <input type="file" accept="audio/*" className="hidden"
                                     onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadActorVoice(actor.id, f); }} />
                                   <Upload className="w-3 h-3" /> Upload
                                 </label>
                                 <button onClick={() => startRecording(null, actor.id)} data-testid={`actor-record-voice-${actor.id}`}
-                                  className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 bg-red-500/8 border border-red-500/15 text-red-400 text-[10px] font-semibold hover:bg-red-500/15 transition-colors rounded-md">
+                                  className={`flex-1 flex items-center justify-center gap-1 px-2 py-1.5 border text-[10px] font-semibold transition-colors rounded-md ${d?'bg-red-900/30 border-red-700 text-red-400 hover:bg-red-900/50':'bg-red-50 border-red-200 text-red-600 hover:bg-red-100'}`}>
                                   <Record className="w-3 h-3" weight="fill" /> Record
                                 </button>
                               </div>
                             )}
-                            <p className="text-amber-700/60 text-[9px] mt-1 text-center">
+                            <p className={`text-[9px] mt-1 text-center ${d?'text-amber-400/60':'text-amber-700/70'}`}>
                               Record {totalLen < 60 ? `~${totalLen.toFixed(0)}s` : `~${Math.floor(totalLen / 60)}m ${Math.round(totalLen % 60)}s`} total
                             </p>
                           </div>
@@ -1254,7 +1262,7 @@ const Editor = () => {
                               const a = document.createElement('a'); a.href = url; a.download = `${(actor.label || actor.id).replace(/\s/g, '_')}_script.txt`; a.click();
                               URL.revokeObjectURL(url);
                             }}
-                            className="w-full flex items-center justify-center gap-1 px-2 py-1 text-[9px] text-zinc-500 hover:text-zinc-950 border border-white/[0.04] hover:border-black/10 rounded-md transition-colors mt-1">
+                            className={`w-full flex items-center justify-center gap-1 px-2 py-1 text-[9px] border rounded-md transition-colors mt-1 ${d?'text-zinc-400 hover:text-white border-zinc-700 hover:border-zinc-500':'text-zinc-500 hover:text-zinc-900 border-zinc-200 hover:border-zinc-400'}`}>
                             <Download className="w-2.5 h-2.5" /> Script ({Math.ceil(actorSegs.length / 15)} pages)
                           </button>
                         )}
