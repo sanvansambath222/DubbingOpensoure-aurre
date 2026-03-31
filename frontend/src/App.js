@@ -549,9 +549,39 @@ const Editor = () => {
           {/* Actors Panel */}
           {actors.length > 0 && (
             <div className="bg-[#0a0e18]/50 border-b border-white/5 p-4">
-              <h3 className="text-[10px] text-slate-500 uppercase font-semibold tracking-wider mb-3 flex items-center gap-1.5">
-                <User className="w-3.5 h-3.5" /> Detected Actors ({actors.length})
-              </h3>
+              {/* Auto-calculated speaking time summary */}
+              <div className="flex items-center gap-4 mb-3 flex-wrap">
+                <h3 className="text-[10px] text-slate-500 uppercase font-semibold tracking-wider flex items-center gap-1.5">
+                  <User className="w-3.5 h-3.5" /> Actors
+                </h3>
+                {actors.map((actor) => {
+                  const isMale = actor.gender === 'male';
+                  const actorTotal = segments.filter(s => s.speaker === actor.id).reduce((sum, s) => sum + ((s.end || 0) - (s.start || 0)), 0);
+                  const mins = Math.floor(actorTotal / 60);
+                  const secs = Math.round(actorTotal % 60);
+                  return (
+                    <div key={`summary-${actor.id}`} className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold ${
+                      isMale ? 'bg-blue-500/10 text-blue-400 border border-blue-500/15' : 'bg-pink-500/10 text-pink-400 border border-pink-500/15'
+                    }`}>
+                      {isMale ? <GenderMale className="w-3 h-3" weight="bold" /> : <GenderFemale className="w-3 h-3" weight="bold" />}
+                      {actor.label}:
+                      <span className="text-white font-bold ml-0.5">
+                        {mins > 0 ? `${mins}m ${secs}s` : `${secs}s`}
+                      </span>
+                    </div>
+                  );
+                })}
+                <div className="ml-auto text-[10px] text-slate-500">
+                  Total: <span className="text-white font-semibold">
+                    {(() => {
+                      const t = segments.reduce((sum, s) => sum + ((s.end || 0) - (s.start || 0)), 0);
+                      const m = Math.floor(t / 60); const s = Math.round(t % 60);
+                      return m > 0 ? `${m}m ${s}s` : `${s}s`;
+                    })()}
+                  </span>
+                </div>
+              </div>
+
               <div className="flex gap-3 overflow-x-auto pb-1">
                 {actors.map((actor) => {
                   const isMale = actor.gender === 'male';
