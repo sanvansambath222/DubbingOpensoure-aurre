@@ -374,44 +374,74 @@ async def transcribe_segments(project_id: str, authorization: str = Header(None)
                     "end": seg.get('end', 0),
                     "original": seg.get('text', '').strip(),
                     "translated": "",
-                    "speaker": f"SPEAKER_{str(i % 2).zfill(2)}",
-                    "gender": "female" if i % 2 == 0 else "male",
-                    "voice": "sophea" if i % 2 == 0 else "dara"
+                    "speaker": "SPEAKER_00",
+                    "gender": "female",
+                    "voice": "sophea"
                 })
 
-            # Use GPT to detect gender AND assign meaningful speaker labels
+            # Use GPT to detect ALL speakers and genders from the dialogue
             if segments:
                 detect_chat = LlmChat(
                     api_key=EMERGENT_LLM_KEY,
                     session_id=f"detect_{project_id}_{uuid.uuid4().hex[:6]}",
-                    system_message="""Analyze Chinese dialogue segments. For each segment detect:
-1. Gender: male or female (based on pronouns like 他/她, names, context, dialogue style)
-2. Speaker ID: Group segments by the same speaker (use SPEAKER_00, SPEAKER_01, etc.)
+                    system_message="""You are an expert at analyzing Chinese dialogue to identify different speakers.
 
-Return ONLY a JSON array:
-[{"idx": 0, "gender": "female", "speaker": "SPEAKER_00"}, ...]
+Your task: Analyze the dialogue lines below and determine:
+1. How many different people are speaking (could be 1, 2, 3, or more)
+2. Which person speaks each line
+3. The gender of each person (male = boy/man, female = girl/woman)
 
-Rules:
-- If 2 people are talking, use SPEAKER_00 and SPEAKER_01
-- Consecutive lines by the same person should have the same speaker ID
-- Use context clues to determine gender (he/she pronouns, names, tone)"""
+IMPORTANT RULES:
+- Look for conversation patterns: questions and answers are usually different people
+- Look for gender clues: 他(he)/她(she), names, 先生(Mr)/女士(Ms), voice/tone descriptions
+- If someone calls another person by name or title, they are different speakers
+- Narration or description lines may be a separate narrator
+- If a video has ONLY one speaker (like a presentation or monologue), assign ALL lines to SPEAKER_00
+- If there are clearly 2+ people having a conversation, use SPEAKER_00, SPEAKER_01, SPEAKER_02, etc.
+- Same speaker across multiple consecutive lines should have the SAME speaker ID
+
+Return ONLY a valid JSON array with NO extra text:
+[{"idx": 0, "speaker": "SPEAKER_00", "gender": "male"}, {"idx": 1, "speaker": "SPEAKER_01", "gender": "female"}, ...]
+
+Every segment index must be included."""
                 )
                 detect_chat.with_model("openai", "gpt-5.2")
-                all_text = "\n".join([f"{i}: {s['original']}" for i, s in enumerate(segments)])
+                
+                # Send full dialogue with line numbers
+                dialogue_lines = []
+                for i, s in enumerate(segments):
+                    dialogue_lines.append(f"Line {i}: \"{s['original']}\"")
+                all_text = "\n".join(dialogue_lines)
+                
                 try:
-                    result_text = await detect_chat.send_message(UserMessage(text=all_text))
+                    result_text = await detect_chat.send_message(UserMessage(text=f"Analyze this Chinese dialogue and identify each speaker:\n\n{all_text}"))
+                    logger.info(f"GPT detection result: {result_text[:500]}")
+                    
                     if "[" in result_text:
                         start_idx = result_text.index("[")
                         end_idx = result_text.rindex("]") + 1
                         detections = json.loads(result_text[start_idx:end_idx])
+                        
                         for d in detections:
-                            idx = d.get("idx", 0)
-                            if idx < len(segments):
-                                segments[idx]["gender"] = d.get("gender", "female")
-                                segments[idx]["voice"] = "dara" if d.get("gender") == "male" else "sophea"
-                                segments[idx]["speaker"] = d.get("speaker", segments[idx]["speaker"])
+                            idx = d.get("idx", -1)
+                            if 0 <= idx < len(segments):
+                                gender = d.get("gender", "female")
+                                speaker = d.get("speaker", "SPEAKER_00")
+                                segments[idx]["gender"] = gender
+                                segments[idx]["speaker"] = speaker
+                                segments[idx]["voice"] = "dara" if gender == "male" else "sophea"
+                        
+                        # Verify: count unique speakers detected
+                        unique_speakers = set(s["speaker"] for s in segments)
+                        logger.info(f"Detected {len(unique_speakers)} unique speakers: {unique_speakers}")
+                        
                 except Exception as e:
-                    logger.warning(f"Smart detection failed: {e}")
+                    logger.warning(f"Speaker detection failed, using fallback: {e}")
+                    # Fallback: try basic alternating if GPT fails
+                    for i, seg in enumerate(segments):
+                        segments[i]["speaker"] = f"SPEAKER_{str(i % 2).zfill(2)}"
+                        segments[i]["gender"] = "female" if i % 2 == 0 else "male"
+                        segments[i]["voice"] = "sophea" if i % 2 == 0 else "dara"
 
             # Build actors from unique speakers — simple "Man" / "Woman" labels
             speaker_info = {}
