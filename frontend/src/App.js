@@ -786,132 +786,45 @@ const Editor = () => {
             </div>
           )}
 
-          {/* Subtitle Table */}
+          {/* Subtitle Table - Simple */}
           <div className="flex-1 overflow-auto">
-            <table className="w-full text-xs" data-testid="subtitle-table">
+            <table className="w-full" data-testid="subtitle-table">
               <thead className="bg-[#0a0e18] sticky top-0 z-10">
-                <tr className="text-slate-600 text-[10px] uppercase tracking-wider">
-                  <th className="px-3 py-2.5 text-left w-10">#</th>
-                  <th className="px-3 py-2.5 text-left w-16">Start</th>
-                  <th className="px-3 py-2.5 text-left w-16">End</th>
-                  <th className="px-3 py-2.5 text-left w-16">Length</th>
-                  <th className="px-3 py-2.5 text-left">Chinese (Original)</th>
-                  <th className="px-3 py-2.5 text-left">Khmer (Translated)</th>
-                  <th className="px-3 py-2.5 text-left w-28">Speaker</th>
-                  <th className="px-3 py-2.5 text-left w-20">Voice</th>
-                  <th className="px-3 py-2.5 text-left w-36">Add Voice</th>
+                <tr className="text-slate-500 text-xs">
+                  <th className="px-4 py-3 text-left w-20 font-medium">Start</th>
+                  <th className="px-4 py-3 text-left w-20 font-medium">End</th>
+                  <th className="px-4 py-3 text-left font-medium">Text (Editable)</th>
                 </tr>
               </thead>
               <tbody>
                 {segments.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="text-center py-24 text-slate-600">
+                    <td colSpan={3} className="text-center py-24 text-slate-600">
                       <VideoCamera className="w-10 h-10 mx-auto mb-3 text-slate-700" weight="duotone" />
                       <p className="text-sm">Upload a video and detect speakers to get started</p>
                     </td>
                   </tr>
                 ) : (
-                  segments.map((seg, idx) => {
-                    const actor = actors.find(a => a.id === seg.speaker);
-                    const hasCustom = actor?.custom_voice || seg.custom_audio;
-                    const color = getSpeakerColor(seg.speaker);
-                    return (
-                      <tr key={idx} className={`border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors`}
-                        data-testid={`segment-row-${idx}`}>
-                        <td className="px-3 py-2.5 text-slate-600 font-mono">{idx + 1}</td>
-                        <td className="px-3 py-2.5 text-slate-500 font-mono">{fmt(seg.start || 0)}</td>
-                        <td className="px-3 py-2.5 text-slate-500 font-mono">{fmt(seg.end || 0)}</td>
-                        <td className="px-3 py-2.5">
-                          <span className="text-amber-400 font-mono font-semibold text-[11px]">
-                            {((seg.end || 0) - (seg.start || 0)).toFixed(1)}s
-                          </span>
-                        </td>
-                        <td className="px-3 py-2.5">
-                          <input type="text" value={seg.original || ""} onChange={(e) => updateSegment(idx, "original", e.target.value)}
-                            className="w-full bg-transparent text-white/80 border-b border-transparent hover:border-white/10 focus:border-cyan-500/50 outline-none py-0.5 text-xs" />
-                        </td>
-                        <td className="px-3 py-2.5">
-                          <input type="text" value={seg.translated || ""} onChange={(e) => updateSegment(idx, "translated", e.target.value)}
-                            className="w-full bg-transparent text-cyan-300/90 border-b border-transparent hover:border-white/10 focus:border-cyan-500/50 outline-none py-0.5 text-xs" />
-                        </td>
-                        <td className="px-3 py-2.5">
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${
-                            seg.gender === 'male'
-                              ? 'bg-blue-500/10 text-blue-400 border border-blue-500/15'
-                              : 'bg-pink-500/10 text-pink-400 border border-pink-500/15'
-                          }`}>
-                            {seg.gender === 'male' ? <GenderMale className="w-2.5 h-2.5" weight="bold" /> : <GenderFemale className="w-2.5 h-2.5" weight="bold" />}
-                            {actor?.label || seg.speaker}
-                          </span>
-                        </td>
-                        <td className="px-3 py-2.5">
-                          {hasCustom ? (
-                            <span className="text-green-400 text-[10px] font-semibold flex items-center gap-0.5">
-                              <CheckCircle className="w-3 h-3" weight="fill" /> Custom
-                            </span>
-                          ) : (
-                            <span className="text-slate-500 text-[10px]">{actor?.voice || seg.voice}</span>
-                          )}
-                        </td>
-                        <td className="px-3 py-2.5">
-                          {seg.custom_audio ? (
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-green-400 text-[10px] font-semibold flex items-center gap-0.5">
-                                <CheckCircle className="w-3 h-3" weight="fill" /> Uploaded
-                              </span>
-                              <button onClick={() => updateSegment(idx, "custom_audio", null)}
-                                data-testid={`segment-remove-voice-${idx}`}
-                                className="text-red-400/50 hover:text-red-400 text-[10px]">
-                                Remove
-                              </button>
-                            </div>
-                          ) : (() => {
-                            const len = (seg.end || 0) - (seg.start || 0);
-                            const script = seg.translated || seg.original || '';
-                            const isRecording = recordingIdx === idx;
-                            return (
-                              <div className="flex flex-col gap-1 max-w-[240px]">
-                                {script && (
-                                  <p className="text-white/50 text-[9px] leading-snug italic truncate" title={script}>
-                                    Say: "{script}"
-                                  </p>
-                                )}
-                                {isRecording ? (
-                                  <button onClick={stopRecording} data-testid={`segment-stop-record-${idx}`}
-                                    className="inline-flex items-center gap-1 px-2.5 py-1 bg-red-500/15 border border-red-500/25 text-red-400 text-[10px] font-semibold rounded-md animate-pulse">
-                                    <Stop className="w-3 h-3" weight="fill" /> Stop ({recordingTime.toFixed(1)}s)
-                                  </button>
-                                ) : (
-                                  <div className="flex items-center gap-1.5">
-                                    <label data-testid={`segment-upload-voice-${idx}`}
-                                      className="cursor-pointer inline-flex items-center gap-1 px-2 py-1 bg-cyan-500/8 border border-cyan-500/15 text-cyan-400 text-[10px] font-semibold hover:bg-cyan-500/15 transition-colors rounded-md">
-                                      <input type="file" accept="audio/*" className="hidden"
-                                        onChange={async (e) => {
-                                          const file = e.target.files?.[0]; if (!file) return;
-                                          const fd = new FormData(); fd.append('file', file); fd.append('segment_id', String(idx));
-                                          try {
-                                            const r = await axios.post(`${API}/projects/${projectId}/upload-segment-audio`, fd,
-                                              { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' } });
-                                            const updated = [...segments]; updated[idx].custom_audio = r.data.audio_path; setSegments(updated);
-                                            toast.success("Voice uploaded!");
-                                          } catch { toast.error("Upload failed"); }
-                                        }} />
-                                      <Upload className="w-3 h-3" />
-                                    </label>
-                                    <button onClick={() => startRecording(idx, null)} data-testid={`segment-record-voice-${idx}`}
-                                      className="inline-flex items-center gap-1 px-2 py-1 bg-red-500/8 border border-red-500/15 text-red-400 text-[10px] font-semibold hover:bg-red-500/15 transition-colors rounded-md">
-                                      <Record className="w-3 h-3" weight="fill" /> Rec
-                                    </button>
-                                    <span className="text-amber-400/70 text-[9px] whitespace-nowrap">~{len.toFixed(1)}s</span>
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })()}
-                        </td>
-                      </tr>
-                    );
-                  })
+                  segments.map((seg, idx) => (
+                    <tr key={idx} className="border-b border-white/[0.04] hover:bg-white/[0.02] transition-colors"
+                      data-testid={`segment-row-${idx}`}>
+                      <td className="px-4 py-3 text-slate-400 font-mono text-sm align-top">
+                        {((seg.start || 0)).toFixed(2)}
+                      </td>
+                      <td className="px-4 py-3 text-slate-400 font-mono text-sm align-top">
+                        {((seg.end || 0)).toFixed(2)}
+                      </td>
+                      <td className="px-4 py-3 align-top">
+                        <textarea
+                          value={seg.translated || seg.original || ""}
+                          onChange={(e) => updateSegment(idx, seg.translated ? "translated" : "original", e.target.value)}
+                          className="w-full bg-transparent text-white/90 text-sm leading-relaxed border-none outline-none resize-none min-h-[28px]"
+                          rows={1}
+                          onInput={(e) => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }}
+                        />
+                      </td>
+                    </tr>
+                  ))
                 )}
               </tbody>
             </table>
