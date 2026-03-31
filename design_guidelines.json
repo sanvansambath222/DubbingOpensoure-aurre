@@ -1,0 +1,103 @@
+{
+  "theme": "dark",
+  "archetype": "Archetype 4 (Swiss & High-Contrast) - Dark Mode Variation",
+  "colors": {
+    "background": "bg-[#0A0A0B]",
+    "surface": "bg-[#141415]",
+    "surface_hover": "bg-[#1F1F22]",
+    "border": "border-[#27272A]",
+    "primary": "bg-[#0055FF]",
+    "primary_hover": "bg-[#0044CC]",
+    "primary_text": "text-white",
+    "text_main": "text-[#FAFAFA]",
+    "text_muted": "text-[#A1A1AA]",
+    "status": {
+      "success": "text-[#34D399] bg-[#34D399]/10",
+      "processing": "text-[#FBBF24] bg-[#FBBF24]/10",
+      "error": "text-[#F87171] bg-[#F87171]/10"
+    }
+  },
+  "typography": {
+    "fonts": {
+      "heading": "'Outfit', sans-serif",
+      "body": "'Manrope', sans-serif",
+      "mono": "'JetBrains Mono', monospace"
+    },
+    "hierarchy": {
+      "h1": "text-4xl sm:text-5xl font-light tracking-tighter text-white",
+      "h2": "text-2xl sm:text-3xl font-medium tracking-tight text-white",
+      "h3": "text-xl sm:text-2xl font-medium tracking-tight text-white",
+      "h4": "text-lg sm:text-xl font-medium tracking-tight text-white",
+      "body": "text-base leading-relaxed text-[#A1A1AA]",
+      "label": "text-xs font-bold uppercase tracking-[0.2em] text-[#71717A]"
+    }
+  },
+  "spacing": {
+    "container_padding": "p-6 md:p-12",
+    "grid_gap": "gap-6 md:gap-8",
+    "section_gap": "gap-16 md:gap-24"
+  },
+  "components": {
+    "buttons": {
+      "primary": "inline-flex items-center justify-center px-6 py-3 bg-[#0055FF] text-white text-sm font-medium transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(0,85,255,0.4)]",
+      "secondary": "inline-flex items-center justify-center px-6 py-3 bg-transparent text-white text-sm font-medium border border-[#27272A] transition-all duration-300 hover:bg-[#27272A] hover:text-white"
+    },
+    "cards": {
+      "dashboard_item": "group relative flex flex-col p-6 bg-[#141415] border border-[#27272A] transition-all duration-300 hover:border-[#3F3F46] hover:-translate-y-1 hover:shadow-2xl overflow-hidden",
+      "glass_header": "fixed top-0 left-0 right-0 z-50 backdrop-blur-xl bg-[#0A0A0B]/70 border-b border-white/5 saturate-150"
+    },
+    "inputs": {
+      "upload_zone": "relative flex flex-col items-center justify-center p-16 md:p-24 border-2 border-dashed border-[#27272A] bg-[#0A0A0B] transition-all duration-300 hover:border-[#0055FF]/50 hover:bg-[#0055FF]/5 cursor-pointer overflow-hidden",
+      "text_field": "w-full bg-[#141415] border border-[#27272A] text-white px-4 py-3 text-sm focus:outline-none focus:border-[#0055FF] focus:ring-1 focus:ring-[#0055FF] transition-all placeholder:text-[#71717A]"
+    }
+  },
+  "layouts": {
+    "dashboard_grid": "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6",
+    "editor_split": "grid grid-cols-1 lg:grid-cols-12 gap-8 items-start",
+    "editor_video_col": "lg:col-span-8 flex flex-col gap-6",
+    "editor_script_col": "lg:col-span-4 flex flex-col gap-6 h-full border-l border-[#27272A] pl-0 lg:pl-8"
+  },
+  "media": {
+    "login_background": {
+      "url": "https://images.pexels.com/photos/33923597/pexels-photo-33923597.jpeg",
+      "description": "Professional podcast and video recording setup. Use as a moody background with heavy black overlay for the Auth page."
+    },
+    "avatar_placeholder": {
+      "url": "https://images.unsplash.com/photo-1672462478040-a5920e2c23d8",
+      "description": "User profile avatar."
+    },
+    "video_thumbnails": [
+      {
+         "url": "https://images.unsplash.com/photo-1602973240044-ac77578f6dc5",
+         "description": "Red recording light for in-progress or demo videos."
+      },
+      {
+         "url": "https://images.pexels.com/photos/30622038/pexels-photo-30622038.jpeg",
+         "description": "Podcast recording session thumbnail."
+      }
+    ]
+  },
+  "motion_and_interactions": {
+    "hover_state": "All interactive elements must scale slightly (`hover:-translate-y-0.5`) and transition border colors.",
+    "page_transition": "Use Framer Motion. Fade in with a slight upward translation (`initial={{opacity:0, y:20}} animate={{opacity:1, y:0}}`).",
+    "loading_state": "Use a continuous left-to-right 'tracing beam' gradient on the border of the upload/processing container. Do not use standard spinner.",
+    "focus_state": "focus:outline-none focus:ring-2 focus:ring-[#0055FF]/50"
+  },
+  "instructions_to_main_agent": [
+    "You are building for a JS (JSX) environment, NOT TSX. Keep everything in standard modern JavaScript.",
+    "Install Google Fonts in index.css: @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Manrope:wght@400;500&family=Outfit:wght@300;400;500;600&display=swap');",
+    "Apply fonts in tailwind.config.js extending fontFamily: outfit: ['Outfit', 'sans-serif'], manrope: ['Manrope', 'sans-serif'], mono: ['JetBrains Mono', 'monospace'].",
+    "Install and use @phosphor-icons/react for icons. Use Duotone weights to provide a high-end, technical aesthetic.",
+    "Design pattern: The application should look like HeyGen AI Editor. High contrast, precise, data-rich but clean. Do not use generic 'Cards'. Use raw borders and grids.",
+    "The Editor View (split screen) is the focal point. The script translation panel (Chinese to Khmer) must look like an inline teleprompter: stacked original (muted text) and translated (bright text) segments.",
+    "The Hero/Auth screen should have the login background image heavily overlaid (`bg-[#0A0A0B]/85`) to ensure the Google Login button pops.",
+    "The Upload Dropzone must have immense generous spacing (p-24) and a dashed border. Make it a massive target for the user.",
+    "No teal or purple-blue gradients. We are strictly using Electric Blue (#0055FF) on a Deep Obsidian (#0A0A0B) background.",
+    "Never center text by default. Align left for paragraphs and labels to ensure maximum readability and tension.",
+    "All buttons must have a clear hover state that shifts background color and adds a subtle text shadow or box shadow."
+  ],
+  "accessibility": {
+    "contrast": "Ensure all text against the #0A0A0B background has at least a 4.5:1 ratio. Muted text must not be darker than #A1A1AA.",
+    "testing_ids": "Add `data-testid` to all major components: `google-login-button`, `upload-dropzone`, `video-player`, `script-panel`, `download-dubbed-button`."
+  }
+}
