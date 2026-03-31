@@ -957,20 +957,12 @@ async def generate_audio_segments(project_id: str, speed: int = Query(2), author
 
         # Get original media duration for timeline alignment
         total_duration_ms = 0
-        original_audio_path = None
         try:
             file_data, _ = get_object(project["original_file_path"])
             with tempfile.NamedTemporaryFile(suffix=f".{project['original_filename'].split('.')[-1]}", delete=False) as tmp:
                 tmp.write(file_data)
                 tmp_path = tmp.name
             total_duration_ms = int(get_media_duration(tmp_path) * 1000)
-            # Extract original audio for mixing
-            original_audio_path = os.path.join(tempfile.gettempdir(), f"orig_audio_{uuid.uuid4().hex}.wav")
-            cmd_extract = ["ffmpeg", "-y", "-i", tmp_path, "-vn", "-acodec", "pcm_s16le", "-ar", "44100", "-ac", "1", original_audio_path]
-            extract_result = subprocess.run(cmd_extract, capture_output=True, text=True)
-            if extract_result.returncode != 0:
-                logger.warning(f"Original audio extraction failed, skipping mix")
-                original_audio_path = None
             os.unlink(tmp_path)
         except Exception as e:
             logger.warning(f"Could not get media duration: {e}")
@@ -1037,25 +1029,16 @@ async def generate_audio_segments(project_id: str, speed: int = Query(2), author
                     adjust_pitch(tts_path, pitched_path, actor_pitch)
                     current_path = pitched_path
                 
-                # Mix with original speaker audio (subtle background)
-                if original_audio_path and seg.get("start") is not None and seg.get("end") is not None:
-                    bg_seg_path = os.path.join(tempfile.gettempdir(), f"bg_seg_{uuid.uuid4().hex}.wav")
-                    if extract_segment_audio(original_audio_path, seg["start"], seg["end"], bg_seg_path):
-                        if mix_audio_with_background(current_path, bg_seg_path, mixed_path, bg_volume=0.10):
-                            current_path = mixed_path
-                        if os.path.exists(bg_seg_path):
-                            os.unlink(bg_seg_path)
-                
                 audio_seg = AudioSegment.from_file(current_path)
                 segment_audio_pairs.append((seg, audio_seg))
                 
                 # Cleanup temp files
-                for p in [tts_path, pitched_path, mixed_path]:
+                for p in [tts_path, pitched_path]:
                     if os.path.exists(p):
                         os.unlink(p)
             except Exception as e:
                 logger.warning(f"Edge TTS failed for segment: {e}")
-                for p in [tts_path, pitched_path, mixed_path]:
+                for p in [tts_path, pitched_path]:
                     if os.path.exists(p) and p:
                         try: os.unlink(p)
                         except: pass
@@ -1089,10 +1072,6 @@ async def generate_audio_segments(project_id: str, speed: int = Query(2), author
 
         path = f"{APP_NAME}/audio/{user.user_id}/{project_id}/dubbed_{uuid.uuid4().hex}.wav"
         result = put_object(path, audio_bytes, "audio/wav")
-        
-        # Cleanup original audio temp file
-        if original_audio_path and os.path.exists(original_audio_path):
-            os.unlink(original_audio_path)
         
         await db.projects.update_one(
             {"project_id": project_id},
