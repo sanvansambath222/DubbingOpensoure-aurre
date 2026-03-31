@@ -148,6 +148,8 @@ class ProjectUpdate(BaseModel):
     title: Optional[str] = None
     original_text: Optional[str] = None
     voice: Optional[str] = None
+    female_voice: Optional[str] = None
+    male_voice: Optional[str] = None
 
 class TranslateRequest(BaseModel):
     chinese_text: str
@@ -323,7 +325,9 @@ async def create_project(project: ProjectCreate, authorization: str = Header(Non
         "dubbed_audio_path": None,
         "dubbed_video_path": None,
         "status": "created",
-        "voice": "alloy",
+        "voice": "sophea",
+        "female_voice": "sophea",
+        "male_voice": "dara",
         "created_at": now,
         "updated_at": now
     }
@@ -544,9 +548,11 @@ async def translate_project(project_id: str, authorization: str = Header(None)):
 # Generate dubbed audio
 @api_router.post("/projects/{project_id}/generate-audio")
 async def generate_audio(project_id: str, authorization: str = Header(None)):
-    """Generate Khmer dubbed audio using CAMB.AI (real Khmer voice)"""
+    """Generate Khmer dubbed audio using CAMB.AI with multi-speaker support"""
     import requests
     import time
+    import io
+    from pydub import AudioSegment
     
     user = await get_current_user(authorization)
     
@@ -563,70 +569,140 @@ async def generate_audio(project_id: str, authorization: str = Header(None)):
     )
     
     try:
-        # Use CAMB.AI for REAL Khmer voice
-        # Gender: 1=Male, 2=Female
+        # Voice gender mapping: 1=Male, 2=Female
         voice_gender = {
             "sophea": 2, "chanthy": 2, "bopha": 2, "srey": 2,
             "dara": 1, "virak": 1, "sokha": 1, "pich": 1
         }
-        
-        gender = voice_gender.get(project.get("voice", "sophea"), 2)
         
         headers = {
             "x-api-key": CAMB_API_KEY,
             "Content-Type": "application/json"
         }
         
-        # Step 1: Submit TTS job
-        payload = {
-            "text": project["translated_text"],
-            "voice_id": 147319,  # Default voice
-            "language": 92,      # Khmer (Cambodia) language ID
-            "gender": gender
-        }
+        translated_text = project["translated_text"]
         
-        response = requests.post(
-            "https://client.camb.ai/apis/tts",
-            json=payload,
-            headers=headers,
-            timeout=30
-        )
-        response.raise_for_status()
-        result_data = response.json()
-        task_id = result_data.get("task_id")
+        # Check if text has speaker markers [F] for female, [M] for male
+        # Format: [F]សួស្តី[M]សូមស្វាគមន៍
+        has_markers = "[F]" in translated_text or "[M]" in translated_text
         
-        if not task_id:
-            raise Exception(f"No task_id in response: {result_data}")
-        
-        # Step 2: Poll for completion
-        max_attempts = 60
-        for attempt in range(max_attempts):
-            status_resp = requests.get(
-                f"https://client.camb.ai/apis/tts/{task_id}",
+        if has_markers:
+            # Multi-speaker mode - split by markers and generate separate audio
+            import re
+            segments = re.split(r'(\[F\]|\[M\])', translated_text)
+            
+            audio_segments = []
+            current_gender = 2  # Default female
+            
+            female_voice = project.get("female_voice", "sophea")
+            male_voice = project.get("male_voice", "dara")
+            
+            for seg in segments:
+                if seg == "[F]":
+                    current_gender = voice_gender.get(female_voice, 2)
+                    continue
+                elif seg == "[M]":
+                    current_gender = voice_gender.get(male_voice, 1)
+                    continue
+                elif seg.strip():
+                    # Generate audio for this segment
+                    payload = {
+                        "text": seg.strip(),
+                        "voice_id": 147319,
+                        "language": 92,
+                        "gender": current_gender
+                    }
+                    
+                    response = requests.post(
+                        "https://client.camb.ai/apis/tts",
+                        json=payload,
+                        headers=headers,
+                        timeout=30
+                    )
+                    response.raise_for_status()
+                    task_id = response.json().get("task_id")
+                    
+                    # Poll for completion
+                    for _ in range(60):
+                        status_resp = requests.get(
+                            f"https://client.camb.ai/apis/tts/{task_id}",
+                            headers=headers,
+                            timeout=30
+                        )
+                        status_data = status_resp.json()
+                        if status_data.get("status") == "SUCCESS":
+                            run_id = status_data.get("run_id")
+                            break
+                        elif status_data.get("status") == "FAILURE":
+                            raise Exception(f"TTS failed: {status_data}")
+                        time.sleep(2)
+                    
+                    # Download segment audio
+                    audio_resp = requests.get(
+                        f"https://client.camb.ai/apis/tts-result/{run_id}",
+                        headers=headers,
+                        timeout=60
+                    )
+                    audio_segments.append(AudioSegment.from_wav(io.BytesIO(audio_resp.content)))
+            
+            # Combine all segments
+            if audio_segments:
+                combined = audio_segments[0]
+                for seg in audio_segments[1:]:
+                    combined += seg
+                
+                output = io.BytesIO()
+                combined.export(output, format="wav")
+                audio_bytes = output.getvalue()
+            else:
+                raise Exception("No audio segments generated")
+        else:
+            # Single speaker mode
+            gender = voice_gender.get(project.get("voice", "sophea"), 2)
+            
+            payload = {
+                "text": translated_text,
+                "voice_id": 147319,
+                "language": 92,
+                "gender": gender
+            }
+            
+            response = requests.post(
+                "https://client.camb.ai/apis/tts",
+                json=payload,
                 headers=headers,
                 timeout=30
             )
-            status_data = status_resp.json()
-            status = status_data.get("status")
+            response.raise_for_status()
+            task_id = response.json().get("task_id")
             
-            if status == "SUCCESS":
-                run_id = status_data.get("run_id")
-                break
-            elif status == "FAILURE":
-                raise Exception(f"TTS failed: {status_data}")
+            if not task_id:
+                raise Exception(f"No task_id in response")
             
-            time.sleep(2)
-        else:
-            raise Exception("TTS timeout - job did not complete")
-        
-        # Step 3: Download audio
-        audio_resp = requests.get(
-            f"https://client.camb.ai/apis/tts-result/{run_id}",
-            headers=headers,
-            timeout=60
-        )
-        audio_resp.raise_for_status()
-        audio_bytes = audio_resp.content
+            # Poll for completion
+            for _ in range(60):
+                status_resp = requests.get(
+                    f"https://client.camb.ai/apis/tts/{task_id}",
+                    headers=headers,
+                    timeout=30
+                )
+                status_data = status_resp.json()
+                if status_data.get("status") == "SUCCESS":
+                    run_id = status_data.get("run_id")
+                    break
+                elif status_data.get("status") == "FAILURE":
+                    raise Exception(f"TTS failed: {status_data}")
+                time.sleep(2)
+            else:
+                raise Exception("TTS timeout")
+            
+            # Download audio
+            audio_resp = requests.get(
+                f"https://client.camb.ai/apis/tts-result/{run_id}",
+                headers=headers,
+                timeout=60
+            )
+            audio_bytes = audio_resp.content
         
         # Upload to storage
         path = f"{APP_NAME}/audio/{user.user_id}/{project_id}/dubbed_{uuid.uuid4().hex}.wav"

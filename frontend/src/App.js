@@ -931,39 +931,68 @@ const Editor = () => {
             </div>
 
             {/* Voice Selection */}
-            <div className="mt-6">
-              <label className="text-xs font-bold uppercase tracking-[0.2em] text-[#71717A] mb-3 block">
-                Khmer Voice (សំឡេងខ្មែរ)
+            <div className="mt-6 space-y-4">
+              <label className="text-xs font-bold uppercase tracking-[0.2em] text-[#71717A] block">
+                Khmer Voices (សំឡេងខ្មែរ)
               </label>
-              <select
-                value={project?.voice || "sophea"}
-                onChange={async (e) => {
-                  try {
-                    const response = await axios.patch(`${API}/projects/${projectId}`, 
-                      { voice: e.target.value },
-                      { headers: { Authorization: `Bearer ${token}` } }
-                    );
-                    setProject(response.data);
-                  } catch (error) {
-                    toast.error("Failed to update voice");
-                  }
-                }}
-                className="w-full bg-[#141415] border border-[#27272A] text-white px-4 py-3 text-sm focus:outline-none focus:border-[#0055FF] transition-all"
-              >
-                <optgroup label="សំឡេងស្រី (Female)">
-                  <option value="sophea">Sophea - សោភា (ស្រី)</option>
-                  <option value="chanthy">Chanthy - ចន្ធី (ស្រី)</option>
-                  <option value="bopha">Bopha - បុប្ផា (ស្រី)</option>
-                  <option value="srey">Srey - ស្រី (ស្រី)</option>
-                </optgroup>
-                <optgroup label="សំឡេងប្រុស (Male)">
-                  <option value="dara">Dara - តារា (ប្រុស)</option>
-                  <option value="virak">Virak - វីរៈ (ប្រុស)</option>
-                  <option value="sokha">Sokha - សុខា (ប្រុស)</option>
-                  <option value="pich">Pich - ពេជ្រ (ប្រុស)</option>
-                </optgroup>
-              </select>
-              <p className="text-xs text-[#34D399] mt-2">✓ Real Khmer pronunciation powered by CAMB.AI</p>
+              
+              {/* Female Voice */}
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-[#A1A1AA] w-24">[F] Female:</span>
+                <select
+                  value={project?.female_voice || "sophea"}
+                  onChange={async (e) => {
+                    try {
+                      const response = await axios.patch(`${API}/projects/${projectId}`, 
+                        { female_voice: e.target.value },
+                        { headers: { Authorization: `Bearer ${token}` } }
+                      );
+                      setProject(response.data);
+                    } catch (error) {
+                      toast.error("Failed to update voice");
+                    }
+                  }}
+                  className="flex-1 bg-[#141415] border border-[#27272A] text-white px-3 py-2 text-sm focus:outline-none focus:border-[#0055FF] transition-all"
+                >
+                  <option value="sophea">Sophea - សោភា</option>
+                  <option value="chanthy">Chanthy - ចន្ធី</option>
+                  <option value="bopha">Bopha - បុប្ផា</option>
+                  <option value="srey">Srey - ស្រី</option>
+                </select>
+              </div>
+              
+              {/* Male Voice */}
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-[#A1A1AA] w-24">[M] Male:</span>
+                <select
+                  value={project?.male_voice || "dara"}
+                  onChange={async (e) => {
+                    try {
+                      const response = await axios.patch(`${API}/projects/${projectId}`, 
+                        { male_voice: e.target.value },
+                        { headers: { Authorization: `Bearer ${token}` } }
+                      );
+                      setProject(response.data);
+                    } catch (error) {
+                      toast.error("Failed to update voice");
+                    }
+                  }}
+                  className="flex-1 bg-[#141415] border border-[#27272A] text-white px-3 py-2 text-sm focus:outline-none focus:border-[#0055FF] transition-all"
+                >
+                  <option value="dara">Dara - តារា</option>
+                  <option value="virak">Virak - វីរៈ</option>
+                  <option value="sokha">Sokha - សុខា</option>
+                  <option value="pich">Pich - ពេជ្រ</option>
+                </select>
+              </div>
+              
+              <div className="p-3 bg-[#1a1a1b] border border-[#27272A] text-xs">
+                <p className="text-[#71717A] mb-2">Multi-speaker format in translated text:</p>
+                <code className="text-[#34D399]">[F]សួស្តី[M]សូមស្វាគមន៍[F]អរគុណ</code>
+                <p className="text-[#52525B] mt-2">[F] = Female voice, [M] = Male voice</p>
+              </div>
+              
+              <p className="text-xs text-[#34D399]">✓ Real Khmer pronunciation powered by CAMB.AI</p>
             </div>
           </div>
         </div>
