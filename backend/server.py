@@ -416,6 +416,40 @@ async def upload_file(project_id: str, file: UploadFile = File(...), authorizati
     
     return await db.projects.find_one({"project_id": project_id}, {"_id": 0})
 
+# Upload custom voice audio for a segment
+@api_router.post("/projects/{project_id}/upload-segment-audio")
+async def upload_segment_audio(
+    project_id: str, 
+    file: UploadFile = File(...), 
+    segment_id: int = 0,
+    authorization: str = Header(None)
+):
+    """Upload custom voice audio for a specific segment"""
+    user = await get_current_user(authorization)
+    
+    project = await db.projects.find_one({"project_id": project_id, "user_id": user.user_id})
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    # Read file
+    data = await file.read()
+    ext = file.filename.split(".")[-1] if "." in file.filename else "wav"
+    path = f"{APP_NAME}/custom_audio/{user.user_id}/{project_id}/segment_{segment_id}_{uuid.uuid4().hex}.{ext}"
+    
+    # Upload to storage
+    result = put_object(path, data, file.content_type or "audio/wav")
+    
+    # Update segment with custom audio path
+    segments = project.get("segments", [])
+    if segment_id < len(segments):
+        segments[segment_id]["custom_audio"] = result["path"]
+        await db.projects.update_one(
+            {"project_id": project_id},
+            {"$set": {"segments": segments, "updated_at": datetime.now(timezone.utc).isoformat()}}
+        )
+    
+    return {"audio_path": result["path"], "segment_id": segment_id}
+
 # Transcribe audio/video
 @api_router.post("/projects/{project_id}/transcribe")
 async def transcribe_project(project_id: str, authorization: str = Header(None)):
@@ -769,9 +803,26 @@ async def generate_audio_segments(project_id: str, authorization: str = Header(N
         audio_parts = []
         
         for seg in segments:
-            if not seg.get("translated"):
+            if not seg.get("translated") and not seg.get("custom_audio"):
                 continue
             
+            # Check if segment has custom audio
+            if seg.get("custom_audio"):
+                # Use custom uploaded audio
+                try:
+                    custom_audio_data, _ = get_object(seg["custom_audio"])
+                    # Try to detect format from extension
+                    ext = seg["custom_audio"].split(".")[-1].lower() if "." in seg["custom_audio"] else "wav"
+                    audio_segment = AudioSegment.from_file(io.BytesIO(custom_audio_data), format=ext)
+                    audio_parts.append(audio_segment)
+                    continue
+                except Exception as e:
+                    logger.warning(f"Failed to load custom audio: {e}, falling back to TTS")
+            
+            # Use AI TTS
+            if not seg.get("translated"):
+                continue
+                
             voice = seg.get("voice", "sophea")
             gender = voice_gender.get(voice, 2)
             

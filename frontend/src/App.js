@@ -649,12 +649,13 @@ const Editor = () => {
                 <th className="px-3 py-3 text-left w-28">Speaker</th>
                 <th className="px-3 py-3 text-left w-20">Gender</th>
                 <th className="px-3 py-3 text-left w-44">Voice</th>
+                <th className="px-3 py-3 text-left w-32">Custom Audio</th>
               </tr>
             </thead>
             <tbody>
               {segments.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="text-center py-20 text-[#64748b]">
+                  <td colSpan={9} className="text-center py-20 text-[#64748b]">
                     Upload a video and click "Auto Transcribe" to detect speakers
                   </td>
                 </tr>
@@ -698,6 +699,7 @@ const Editor = () => {
                         value={seg.voice || (seg.gender === "male" ? "dara" : "sophea")}
                         onChange={(e) => updateSegment(idx, "voice", e.target.value)}
                         className="bg-[#1e293b] text-white text-xs px-2 py-1 border-none outline-none w-full"
+                        disabled={seg.custom_audio}
                       >
                         {seg.gender === "male" ? (
                           maleVoices.map(v => <option key={v.id} value={v.id}>{v.name}</option>)
@@ -705,6 +707,54 @@ const Editor = () => {
                           femaleVoices.map(v => <option key={v.id} value={v.id}>{v.name}</option>)
                         )}
                       </select>
+                    </td>
+                    <td className="px-3 py-3">
+                      <div className="flex items-center gap-1">
+                        {seg.custom_audio ? (
+                          <div className="flex items-center gap-1">
+                            <span className="text-[#22c55e] text-xs">✓ Custom</span>
+                            <button
+                              onClick={() => updateSegment(idx, "custom_audio", null)}
+                              className="text-[#ef4444] text-xs hover:underline"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ) : (
+                          <label className="cursor-pointer">
+                            <input
+                              type="file"
+                              accept="audio/*"
+                              className="hidden"
+                              onChange={async (e) => {
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+                                
+                                const formData = new FormData();
+                                formData.append('file', file);
+                                formData.append('segment_id', String(idx));
+                                
+                                try {
+                                  const response = await axios.post(
+                                    `${API}/projects/${projectId}/upload-segment-audio`,
+                                    formData,
+                                    { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' } }
+                                  );
+                                  const updatedSegs = [...segments];
+                                  updatedSegs[idx].custom_audio = response.data.audio_path;
+                                  setSegments(updatedSegs);
+                                  toast.success("Custom voice uploaded!");
+                                } catch (err) {
+                                  toast.error("Upload failed");
+                                }
+                              }}
+                            />
+                            <span className="text-[#00d4ff] text-xs hover:underline flex items-center gap-1">
+                              <Upload className="w-3 h-3" /> Upload
+                            </span>
+                          </label>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))
