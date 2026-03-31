@@ -617,6 +617,7 @@ const Editor = () => {
                   <th className="px-3 py-2.5 text-left w-10">#</th>
                   <th className="px-3 py-2.5 text-left w-16">Start</th>
                   <th className="px-3 py-2.5 text-left w-16">End</th>
+                  <th className="px-3 py-2.5 text-left w-16">Length</th>
                   <th className="px-3 py-2.5 text-left">Chinese (Original)</th>
                   <th className="px-3 py-2.5 text-left">Khmer (Translated)</th>
                   <th className="px-3 py-2.5 text-left w-28">Speaker</th>
@@ -627,7 +628,7 @@ const Editor = () => {
               <tbody>
                 {segments.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="text-center py-24 text-slate-600">
+                    <td colSpan={9} className="text-center py-24 text-slate-600">
                       <VideoCamera className="w-10 h-10 mx-auto mb-3 text-slate-700" weight="duotone" />
                       <p className="text-sm">Upload a video and detect speakers to get started</p>
                     </td>
@@ -643,6 +644,11 @@ const Editor = () => {
                         <td className="px-3 py-2.5 text-slate-600 font-mono">{idx + 1}</td>
                         <td className="px-3 py-2.5 text-slate-500 font-mono">{fmt(seg.start || 0)}</td>
                         <td className="px-3 py-2.5 text-slate-500 font-mono">{fmt(seg.end || 0)}</td>
+                        <td className="px-3 py-2.5">
+                          <span className="text-amber-400 font-mono font-semibold text-[11px]">
+                            {((seg.end || 0) - (seg.start || 0)).toFixed(1)}s
+                          </span>
+                        </td>
                         <td className="px-3 py-2.5">
                           <input type="text" value={seg.original || ""} onChange={(e) => updateSegment(idx, "original", e.target.value)}
                             className="w-full bg-transparent text-white/80 border-b border-transparent hover:border-white/10 focus:border-cyan-500/50 outline-none py-0.5 text-xs" />
