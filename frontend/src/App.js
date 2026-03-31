@@ -299,7 +299,7 @@ const Editor = () => {
   const [processingMsg, setProcessingMsg] = useState(null);
   const [audioUrl, setAudioUrl] = useState(null);
   const [videoUrl, setVideoUrl] = useState(null);
-  const [burnSubs, setBurnSubs] = useState(true);
+  const [burnSubs, setBurnSubs] = useState(false);
   const fileInputRef = useRef(null);
   const audioRef = useRef(null);
 
