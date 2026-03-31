@@ -402,59 +402,88 @@ async def transcribe_segments(project_id: str, authorization: str = Header(None)
                 response = await stt.transcribe(file=audio_file, model="whisper-1", language="zh", response_format="verbose_json")
 
             raw_segments = response.segments if hasattr(response, 'segments') else []
+            
+            # Step 1: Merge short segments into natural sentences
+            # Whisper sometimes splits into tiny 1-second chunks — merge them
+            merged = []
+            current = None
+            for seg in raw_segments:
+                text = seg.get('text', '').strip()
+                start = seg.get('start', 0)
+                end = seg.get('end', 0)
+                if not text:
+                    continue
+                if current is None:
+                    current = {"start": start, "end": end, "text": text}
+                else:
+                    gap = start - current["end"]
+                    current_len = current["end"] - current["start"]
+                    # Merge if: gap < 0.5s AND current segment < 5s AND text is short
+                    if gap < 0.5 and current_len < 5.0 and len(current["text"]) < 40:
+                        current["end"] = end
+                        current["text"] += text
+                    else:
+                        merged.append(current)
+                        current = {"start": start, "end": end, "text": text}
+            if current:
+                merged.append(current)
+            
+            logger.info(f"Merged {len(raw_segments)} raw segments into {len(merged)} natural segments")
+            
             segments = []
-            for i, seg in enumerate(raw_segments):
+            for i, seg in enumerate(merged):
                 segments.append({
                     "id": i,
-                    "start": seg.get('start', 0),
-                    "end": seg.get('end', 0),
-                    "original": seg.get('text', '').strip(),
+                    "start": round(seg["start"], 1),
+                    "end": round(seg["end"], 1),
+                    "original": seg["text"],
                     "translated": "",
                     "speaker": "SPEAKER_00",
                     "gender": "female",
                     "voice": "sophea"
                 })
 
-            # Step 1: Analyze voice pitch for each segment
+            # Step 2: Analyze voice pitch for each MERGED segment (longer = more accurate)
             pitch_genders = []
             for seg_data in segments:
                 pg = analyze_pitch(audio_path, seg_data["start"], seg_data["end"])
                 pitch_genders.append(pg)
             logger.info(f"Audio pitch analysis: {pitch_genders}")
 
-            # Step 2: Use GPT to detect speakers from dialogue + pitch hints
+            # Step 3: Use GPT to detect speakers with dialogue context + pitch data
             if segments:
-                # Build pitch info string for GPT
                 pitch_hints = []
                 for i, pg in enumerate(pitch_genders):
                     if pg:
-                        pitch_hints.append(f"Line {i}: audio pitch suggests {pg} voice")
-                pitch_info = "\n".join(pitch_hints) if pitch_hints else "No audio pitch data available."
+                        pitch_hints.append(f"Line {i}: audio={pg}")
+                pitch_info = ", ".join(pitch_hints) if pitch_hints else "No pitch data."
 
                 detect_chat = LlmChat(
                     api_key=EMERGENT_LLM_KEY,
                     session_id=f"detect_{project_id}_{uuid.uuid4().hex[:6]}",
-                    system_message="""You are an expert at analyzing Chinese dialogue to identify different speakers.
+                    system_message="""Analyze Chinese dialogue to identify different speakers and their gender.
 
-Your task: Analyze the dialogue lines AND the audio pitch analysis below to determine:
-1. How many different people are speaking (could be 1, 2, 3, or more)
-2. Which person speaks each line
-3. The gender of each person (male = boy/man, female = girl/woman)
+Audio pitch detection results: """ + pitch_info + """
 
-IMPORTANT RULES:
-- The audio pitch analysis gives hints about voice gender - USE THIS as primary signal
-- Look for conversation patterns: questions and answers are usually different people
-- Look for gender clues in text: 他(he)/她(she), names, 先生(Mr)/女士(Ms)
-- If someone calls another person by name or title, they are different speakers
-- If a video has ONLY one speaker (monologue), assign ALL lines to SPEAKER_00
-- If there are 2+ people talking, use SPEAKER_00, SPEAKER_01, SPEAKER_02, etc.
-- Same speaker across consecutive lines = SAME speaker ID
-- When audio pitch and text clues agree, be confident. When they disagree, trust audio pitch more.
+HOW TO DETECT SPEAKERS:
+- When someone ADDRESSES another person (e.g. 九爷, 少爷, 老板, 医生), the NEXT reply is a DIFFERENT speaker
+- Words like 老子, 我, suggest the current speaker talking about themselves
+- Aggressive/commanding speech (滚, 找死, 给我) = often male
+- Polite/subordinate responses (是, 放心, 准备好了) = could be either gender, but a different person than the commander
+- 老婆(wife), 女朋友(girlfriend) = female being referenced
+- 先生/哥/爷 = male, 姐/妹/女士 = female
+- Conversation TURNS: questions followed by answers = different speakers
+- Trust audio pitch analysis for gender when available
 
-Return ONLY a valid JSON array:
-[{"idx": 0, "speaker": "SPEAKER_00", "gender": "male"}, {"idx": 1, "speaker": "SPEAKER_01", "gender": "female"}, ...]
+RULES:
+- Most Chinese drama videos have 2-5 different speakers
+- Use SPEAKER_00, SPEAKER_01, SPEAKER_02, etc. 
+- Same person speaking consecutive lines = SAME speaker ID
+- Different conversation turns = likely DIFFERENT speakers
 
-Every segment index must be included."""
+Return ONLY valid JSON array (no extra text):
+[{"idx": 0, "speaker": "SPEAKER_00", "gender": "male"}, ...]
+Must include ALL line indices (0 to """ + str(len(segments)-1) + """)."""
                 )
                 detect_chat.with_model("openai", "gpt-5.2")
                 
@@ -465,7 +494,7 @@ Every segment index must be included."""
                 all_text = "\n".join(dialogue_lines)
                 
                 try:
-                    result_text = await detect_chat.send_message(UserMessage(text=f"AUDIO PITCH ANALYSIS:\n{pitch_info}\n\nDIALOGUE LINES:\n{all_text}\n\nIdentify each speaker and gender:"))
+                    result_text = await detect_chat.send_message(UserMessage(text=f"Identify speaker and gender for each line:\n\n{all_text}"))
                     logger.info(f"GPT detection result: {result_text[:500]}")
                     
                     if "[" in result_text:
