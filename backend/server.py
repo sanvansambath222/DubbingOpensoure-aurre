@@ -27,6 +27,9 @@ db = client[os.environ['DB_NAME']]
 # Emergent LLM Key
 EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY')
 
+# ElevenLabs API Key
+ELEVENLABS_API_KEY = os.environ.get('ELEVENLABS_API_KEY')
+
 # Object Storage with local fallback
 STORAGE_URL = "https://integrations.emergentagent.com/objstore/api/v1/storage"
 APP_NAME = "khmer-dubbing"
@@ -535,8 +538,9 @@ async def translate_project(project_id: str, authorization: str = Header(None)):
 # Generate dubbed audio
 @api_router.post("/projects/{project_id}/generate-audio")
 async def generate_audio(project_id: str, authorization: str = Header(None)):
-    """Generate Khmer dubbed audio using TTS"""
-    from emergentintegrations.llm.openai import OpenAITextToSpeech
+    """Generate Khmer dubbed audio using ElevenLabs TTS"""
+    from elevenlabs import ElevenLabs
+    from elevenlabs import VoiceSettings
     
     user = await get_current_user(authorization)
     
@@ -553,13 +557,38 @@ async def generate_audio(project_id: str, authorization: str = Header(None)):
     )
     
     try:
-        tts = OpenAITextToSpeech(api_key=EMERGENT_LLM_KEY)
+        # Use ElevenLabs for natural Khmer voice
+        eleven_client = ElevenLabs(api_key=ELEVENLABS_API_KEY)
         
-        audio_bytes = await tts.generate_speech(
+        # Map voice selection to ElevenLabs voices
+        voice_map = {
+            "alloy": "EXAVITQu4vr4xnSDxMaL",  # Sarah - Mature
+            "echo": "JBFqnCBsd6RMkjVDRZzb",   # George - Warm
+            "fable": "FGY2WhTYpPnrIDTdsKH5",  # Laura - Enthusiast
+            "onyx": "IKne3meq5aSn9XLyUdCD",   # Charlie - Deep
+            "nova": "TX3LPaxmHKxFdv7VOQHJ",   # Liam - Energetic
+            "shimmer": "Xb7hH8MSUJpSbSDYk0k2" # Alice - Clear
+        }
+        
+        voice_id = voice_map.get(project.get("voice", "alloy"), "EXAVITQu4vr4xnSDxMaL")
+        
+        # Generate audio with multilingual model for Khmer
+        audio_generator = eleven_client.text_to_speech.convert(
             text=project["translated_text"],
-            model="tts-1-hd",
-            voice=project.get("voice", "alloy")
+            voice_id=voice_id,
+            model_id="eleven_multilingual_v2",  # Supports Khmer
+            voice_settings=VoiceSettings(
+                stability=0.5,
+                similarity_boost=0.75,
+                style=0.0,
+                use_speaker_boost=True
+            )
         )
+        
+        # Collect audio data
+        audio_bytes = b""
+        for chunk in audio_generator:
+            audio_bytes += chunk
         
         # Upload to storage
         path = f"{APP_NAME}/audio/{user.user_id}/{project_id}/dubbed_{uuid.uuid4().hex}.mp3"
@@ -576,6 +605,7 @@ async def generate_audio(project_id: str, authorization: str = Header(None)):
         
         return await db.projects.find_one({"project_id": project_id}, {"_id": 0})
     except Exception as e:
+        logger.error(f"ElevenLabs TTS error: {str(e)}")
         await db.projects.update_one(
             {"project_id": project_id},
             {"$set": {"status": "error", "updated_at": datetime.now(timezone.utc).isoformat()}}
