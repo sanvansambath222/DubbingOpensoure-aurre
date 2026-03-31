@@ -679,6 +679,23 @@ const Editor = () => {
       )
     : segments.map((seg, idx) => ({ ...seg, _origIdx: idx }));
 
+  // Auto-process: transcribe + translate + audio in one click
+  const autoProcess = async () => {
+    setProcessingMsg("Auto-processing: Detect → Translate → Audio...");
+    try {
+      const r = await axios.post(`${API}/projects/${projectId}/auto-process?speed=${ttsSpeed}`, {}, {
+        headers: { Authorization: `Bearer ${token}` }, timeout: 600000
+      });
+      setProject(r.data);
+      if (r.data.segments) setSegments(r.data.segments);
+      if (r.data.actors) setActors(r.data.actors);
+      if (r.data.dubbed_audio_path) loadFile(r.data.dubbed_audio_path, 'audio');
+      toast.success("Auto-process complete!");
+      sendNotification("KhmerDub", "Auto-process complete!");
+    } catch (e) { toast.error(e.response?.data?.detail || "Auto-process failed"); }
+    finally { setProcessingMsg(null); }
+  };
+
   // Share link
   const createShareLink = async () => {
     try {
@@ -866,6 +883,15 @@ const Editor = () => {
                 </button>
               )}
             </div>
+
+            {/* Auto Process - one click does everything */}
+            {project?.original_filename && !audioUrl && (
+              <button onClick={autoProcess} disabled={!!processingMsg} data-testid="auto-process-btn"
+                className="w-full py-3 bg-gradient-to-r from-cyan-500/15 to-blue-500/15 border border-cyan-500/25 text-cyan-400 text-xs font-semibold rounded-lg hover:from-cyan-500/25 hover:to-blue-500/25 transition-all disabled:opacity-40 flex items-center justify-center gap-1.5">
+                <Spinner className={`w-3.5 h-3.5 ${processingMsg ? 'animate-spin' : ''}`} />
+                {processingMsg ? 'Processing...' : 'Auto Process (Detect → Translate → Audio)'}
+              </button>
+            )}
 
             {/* Original Video Preview */}
             {originalVideoUrl && (

@@ -60,6 +60,9 @@ Build Dubbing China to Khmer using python website following top trending design 
 - [x] Batch export (MP3 + MP4 + SRT all at once)
 - [x] Search in segments
 - [x] Browser notification when processing done
+- [x] Parallel TTS processing (5 segments at a time, 2-3x faster)
+- [x] Auto-process button (one click: Detect → Translate → Audio)
+- [x] Queue status tracking per project
 - [x] Voice Pitch slider (-6 to +6 semitones) **per actor** for older/deeper or younger/higher voice
 - [x] FFmpeg pitch post-processing on TTS audio (preview + full generation)
 - [x] GPT auto-detects actor **age** (~20s, ~30s, ~40s, etc.) and **role** (Narrator, Boss, Wife) from dialogue

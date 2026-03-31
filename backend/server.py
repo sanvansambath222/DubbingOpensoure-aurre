@@ -14,6 +14,7 @@ import requests
 import subprocess
 import tempfile
 import json
+import asyncio
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -28,6 +29,10 @@ CAMB_API_KEY = os.environ.get('CAMB_API_KEY')
 APP_NAME = "khmer-dubbing"
 LOCAL_STORAGE_DIR = Path("/app/uploads")
 LOCAL_STORAGE_DIR.mkdir(parents=True, exist_ok=True)
+
+# Background task queue
+processing_queue = asyncio.Queue()
+queue_status = {}  # project_id -> {"position": int, "status": "queued"|"processing"|"done"|"error"}
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -141,75 +146,6 @@ def adjust_pitch(input_path: str, output_path: str, pitch_semitones: int):
         logger.warning(f"Pitch adjustment failed: {result.stderr}")
         import shutil
         shutil.copy2(input_path, output_path)
-
-# Emotion-to-prosody mapping for more human-like TTS
-EMOTION_PROSODY = {
-    "happy": {"rate": "+8%", "pitch": "+5%", "volume": "+5%"},
-    "excited": {"rate": "+12%", "pitch": "+8%", "volume": "+10%"},
-    "sad": {"rate": "-10%", "pitch": "-5%", "volume": "-10%"},
-    "angry": {"rate": "+5%", "pitch": "-3%", "volume": "+15%"},
-    "scared": {"rate": "+10%", "pitch": "+10%", "volume": "-5%"},
-    "calm": {"rate": "-5%", "pitch": "-2%", "volume": "-5%"},
-    "serious": {"rate": "-3%", "pitch": "-5%", "volume": "+5%"},
-    "neutral": {"rate": "+0%", "pitch": "+0%", "volume": "+0%"},
-}
-
-def build_ssml(text: str, voice: str, rate: str, emotion: str = "neutral"):
-    """Build SSML with emotion prosody and natural pauses"""
-    prosody = EMOTION_PROSODY.get(emotion, EMOTION_PROSODY["neutral"])
-    
-    # Combine base rate with emotion rate
-    base_rate_num = int(rate.replace('%', '').replace('+', ''))
-    emotion_rate_num = int(prosody["rate"].replace('%', '').replace('+', ''))
-    final_rate = f"{base_rate_num + emotion_rate_num:+d}%"
-    
-    # Add natural pauses: after commas, periods, question marks
-    processed_text = text
-    for punct in ['។', '?', '!', '。', '？', '！']:
-        processed_text = processed_text.replace(punct, f'{punct}<break time="300ms"/>')
-    for punct in ['،', ',', '，', '、']:
-        processed_text = processed_text.replace(punct, f'{punct}<break time="150ms"/>')
-    
-    # Add a slight breath at the start
-    processed_text = f'<break time="100ms"/>{processed_text}'
-    
-    ssml = f"""<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="http://www.w3.org/2001/mstts" xml:lang="km-KH">
-  <voice name="{voice}">
-    <prosody rate="{final_rate}" pitch="{prosody['pitch']}" volume="{prosody['volume']}">
-      {processed_text}
-    </prosody>
-  </voice>
-</speak>"""
-    return ssml
-
-def extract_segment_audio(source_audio_path: str, start_sec: float, end_sec: float, output_path: str):
-    """Extract audio segment from source file using FFmpeg"""
-    duration = end_sec - start_sec
-    if duration <= 0:
-        return False
-    cmd = [
-        "ffmpeg", "-y", "-i", source_audio_path,
-        "-ss", str(start_sec), "-t", str(duration),
-        "-acodec", "pcm_s16le", "-ar", "44100", "-ac", "1",
-        output_path
-    ]
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    return result.returncode == 0
-
-def mix_audio_with_background(tts_path: str, bg_path: str, output_path: str, bg_volume: float = 0.12):
-    """Mix TTS audio with background (original voice) at low volume"""
-    # bg_volume: 0.12 = 12% of original volume (subtle background)
-    cmd = [
-        "ffmpeg", "-y",
-        "-i", tts_path,
-        "-i", bg_path,
-        "-filter_complex",
-        f"[1:a]volume={bg_volume}[bg];[0:a][bg]amix=inputs=2:duration=first:dropout_transition=2[out]",
-        "-map", "[out]",
-        output_path
-    ]
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    return result.returncode == 0
 
 # FastAPI app
 app = FastAPI()
@@ -962,28 +898,33 @@ async def generate_audio_segments(project_id: str, speed: int = Query(2), author
             total_duration_ms = int((last_end + 2) * 1000)
 
         segment_audio_pairs = []
-
+        
+        # Separate custom audio segments and TTS segments
+        custom_pairs = []
+        tts_segments = []
+        
         for seg in segments:
             if not seg.get("translated") and not seg.get("custom_audio"):
                 continue
-
             custom_audio_path = seg.get("custom_audio") or actor_voice_map.get(seg.get("speaker", ""))
-
             if custom_audio_path:
                 try:
                     audio_data, _ = get_object(custom_audio_path)
                     ext = custom_audio_path.split(".")[-1].lower() if "." in custom_audio_path else "wav"
                     audio_seg = AudioSegment.from_file(io.BytesIO(audio_data), format=ext)
-                    segment_audio_pairs.append((seg, audio_seg))
+                    custom_pairs.append((seg, audio_seg))
                     continue
                 except Exception as e:
                     logger.warning(f"Custom audio load failed: {e}, falling back to TTS")
-
             if not seg.get("translated"):
                 continue
+            tts_segments.append(seg)
 
-            # Use Edge TTS for Khmer
-            import edge_tts
+        # Parallel TTS generation - process 5 at a time
+        import edge_tts
+        BATCH_SIZE = 5
+        
+        async def generate_single_tts(seg):
             speaker = seg.get("speaker", "")
             seg_gender = seg.get("gender", "female")
             actor_pitch = 0
@@ -992,12 +933,10 @@ async def generate_audio_segments(project_id: str, speed: int = Query(2), author
                     seg_gender = a.get("gender", seg_gender)
                     actor_pitch = a.get("pitch", 0)
                     break
-            
             edge_voice = "km-KH-PisethNeural" if seg_gender == "male" else "km-KH-SreymomNeural"
-            
+            tts_path = os.path.join(tempfile.gettempdir(), f"tts_{uuid.uuid4().hex}.mp3")
+            pitched_path = os.path.join(tempfile.gettempdir(), f"tts_pitched_{uuid.uuid4().hex}.mp3")
             try:
-                tts_path = os.path.join(tempfile.gettempdir(), f"tts_{uuid.uuid4().hex}.mp3")
-                pitched_path = os.path.join(tempfile.gettempdir(), f"tts_pitched_{uuid.uuid4().hex}.mp3")
                 communicate = edge_tts.Communicate(seg["translated"], voice=edge_voice, rate=f"+{speed}%" if speed >= 0 else f"{speed}%")
                 await communicate.save(tts_path)
                 current_path = tts_path
@@ -1005,16 +944,29 @@ async def generate_audio_segments(project_id: str, speed: int = Query(2), author
                     adjust_pitch(tts_path, pitched_path, actor_pitch)
                     current_path = pitched_path
                 audio_seg = AudioSegment.from_file(current_path)
-                segment_audio_pairs.append((seg, audio_seg))
                 for p in [tts_path, pitched_path]:
                     if os.path.exists(p):
                         os.unlink(p)
+                return (seg, audio_seg)
             except Exception as e:
                 logger.warning(f"Edge TTS failed for segment: {e}")
                 for p in [tts_path, pitched_path]:
                     if os.path.exists(p):
                         try: os.unlink(p)
                         except: pass
+                return None
+
+        tts_pairs = []
+        for i in range(0, len(tts_segments), BATCH_SIZE):
+            batch = tts_segments[i:i + BATCH_SIZE]
+            results = await asyncio.gather(*[generate_single_tts(seg) for seg in batch])
+            tts_pairs.extend([r for r in results if r is not None])
+            logger.info(f"TTS batch {i // BATCH_SIZE + 1}: {len([r for r in results if r])} generated")
+
+        # Combine custom + TTS, sort by segment order
+        all_pairs = custom_pairs + tts_pairs
+        seg_order = {id(seg): idx for idx, seg in enumerate(segments)}
+        segment_audio_pairs = sorted(all_pairs, key=lambda p: p[0].get("id", 0))
 
         if not segment_audio_pairs:
             raise Exception("No audio generated")
@@ -1276,6 +1228,65 @@ async def get_shared_srt(share_token: str):
         media_type="application/x-subrip",
         headers={"Content-Disposition": f'attachment; filename="{project.get("title", "subtitles")}_khmer.srt"'}
     )
+
+# Queue status endpoint
+@api_router.get("/projects/{project_id}/queue-status")
+async def get_queue_status(project_id: str, authorization: str = Header(None)):
+    user = await get_current_user(authorization)
+    project = await db.projects.find_one({"project_id": project_id, "user_id": user.user_id}, {"_id": 0})
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    qs = queue_status.get(project_id, {"position": 0, "status": project.get("status", "created")})
+    return {
+        "project_id": project_id,
+        "status": project.get("status", "created"),
+        "queue_position": qs.get("position", 0),
+        "queue_status": qs.get("status", "idle"),
+    }
+
+# Auto-process: transcribe + translate + generate audio in one call
+@api_router.post("/projects/{project_id}/auto-process")
+async def auto_process(project_id: str, speed: int = Query(2), authorization: str = Header(None)):
+    from emergentintegrations.llm.openai import OpenAISpeechToText
+    from emergentintegrations.llm.chat import LlmChat, UserMessage
+    
+    user = await get_current_user(authorization)
+    project = await db.projects.find_one({"project_id": project_id, "user_id": user.user_id})
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    if not project.get("original_file_path"):
+        raise HTTPException(status_code=400, detail="No file uploaded")
+    
+    queue_status[project_id] = {"position": 0, "status": "processing"}
+    
+    try:
+        # Step 1: Transcribe (if not done)
+        if project.get("status") in ["created", "uploaded"]:
+            await db.projects.update_one(
+                {"project_id": project_id},
+                {"$set": {"status": "transcribing", "updated_at": datetime.now(timezone.utc).isoformat()}}
+            )
+            # Call transcribe endpoint logic internally
+            result = await transcribe_segments(project_id, authorization=f"Bearer {authorization.split('Bearer ')[-1] if 'Bearer ' in (authorization or '') else authorization}")
+            project = await db.projects.find_one({"project_id": project_id}, {"_id": 0})
+        
+        # Step 2: Translate (if not done)
+        if project.get("status") == "transcribed":
+            result = await translate_segments(project_id, authorization=f"Bearer {authorization.split('Bearer ')[-1] if 'Bearer ' in (authorization or '') else authorization}")
+            project = await db.projects.find_one({"project_id": project_id}, {"_id": 0})
+        
+        # Step 3: Generate audio (if not done)
+        if project.get("status") == "translated":
+            result = await generate_audio_segments(project_id, speed=speed, authorization=f"Bearer {authorization.split('Bearer ')[-1] if 'Bearer ' in (authorization or '') else authorization}")
+            project = await db.projects.find_one({"project_id": project_id}, {"_id": 0})
+        
+        queue_status[project_id] = {"position": 0, "status": "done"}
+        return project
+        
+    except Exception as e:
+        queue_status[project_id] = {"position": 0, "status": "error"}
+        logger.error(f"Auto-process error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 app.include_router(api_router)
 app.add_middleware(CORSMiddleware, allow_credentials=True, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
