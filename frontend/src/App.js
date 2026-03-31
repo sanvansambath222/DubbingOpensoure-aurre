@@ -1065,29 +1065,43 @@ const Editor = () => {
                   const segCount = actorSegs.length;
                   return (
                     <div key={actor.id} data-testid={`actor-card-${actor.id}`}
-                      className="min-w-[220px] bg-white/[0.02] border border-white/[0.06] rounded-xl p-3.5 hover:border-cyan-500/15 transition-all flex-shrink-0">
-                      <div className="flex items-center gap-2.5 mb-2">
-                        <div className={`w-9 h-9 rounded-full flex items-center justify-center border ${
-                          isMale ? 'bg-blue-500/10 border-blue-500/20' : 'bg-pink-500/10 border-pink-500/20'
+                      className={`min-w-[230px] rounded-xl p-3.5 transition-all flex-shrink-0 border-2 ${
+                        isMale
+                          ? 'bg-gradient-to-br from-blue-950/40 to-blue-900/20 border-blue-500/30 hover:border-blue-400/50'
+                          : 'bg-gradient-to-br from-pink-950/40 to-pink-900/20 border-pink-500/30 hover:border-pink-400/50'
+                      }`}>
+                      {/* Gender banner */}
+                      <div className={`flex items-center gap-2 mb-3 pb-2.5 border-b ${
+                        isMale ? 'border-blue-500/15' : 'border-pink-500/15'
+                      }`}>
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                          isMale ? 'bg-blue-500/20' : 'bg-pink-500/20'
                         }`}>
-                          {isMale ? <GenderMale className="w-4 h-4 text-blue-400" weight="bold" /> : <GenderFemale className="w-4 h-4 text-pink-400" weight="bold" />}
+                          {isMale
+                            ? <GenderMale className="w-5 h-5 text-blue-400" weight="bold" />
+                            : <GenderFemale className="w-5 h-5 text-pink-400" weight="bold" />
+                          }
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-white font-medium text-xs truncate">{actor.label || actor.id}</p>
-                          <div className="flex items-center gap-1.5">
+                          <p className="text-white font-semibold text-xs truncate">{actor.label || actor.id}</p>
+                          <div className="flex items-center gap-1.5 mt-0.5">
                             <select data-testid={`actor-gender-${actor.id}`} value={actor.gender || 'female'}
                               onChange={(e) => updateActor(actor.id, 'gender', e.target.value)}
-                              className={`bg-transparent text-[10px] font-semibold border-none outline-none cursor-pointer ${isMale ? 'text-blue-400' : 'text-pink-400'}`}>
+                              className={`text-[10px] font-bold border-none outline-none cursor-pointer rounded px-1.5 py-0.5 ${
+                                isMale ? 'bg-blue-500/20 text-blue-300' : 'bg-pink-500/20 text-pink-300'
+                              }`}>
                               <option value="female">Girl</option>
                               <option value="male">Boy</option>
                             </select>
                             {actor.age && (
-                              <span className="text-[9px] text-slate-500 bg-white/[0.04] px-1.5 py-0.5 rounded" data-testid={`actor-age-${actor.id}`}>
+                              <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded ${
+                                isMale ? 'bg-blue-500/10 text-blue-400/70' : 'bg-pink-500/10 text-pink-400/70'
+                              }`} data-testid={`actor-age-${actor.id}`}>
                                 ~{actor.age}
                               </span>
                             )}
                             {actor.role && (
-                              <span className="text-[9px] text-cyan-400/60 bg-cyan-500/5 px-1.5 py-0.5 rounded" data-testid={`actor-role-${actor.id}`}>
+                              <span className="text-[9px] text-cyan-400/60 bg-cyan-500/8 px-1.5 py-0.5 rounded font-medium" data-testid={`actor-role-${actor.id}`}>
                                 {actor.role}
                               </span>
                             )}
@@ -1096,17 +1110,19 @@ const Editor = () => {
                       </div>
 
                       {/* Speaking info */}
-                      <div className="bg-amber-500/8 border border-amber-500/15 rounded-md px-2.5 py-2 mb-2 space-y-1">
+                      <div className={`rounded-lg px-2.5 py-2 mb-2 space-y-1 ${
+                        isMale ? 'bg-blue-500/8 border border-blue-500/10' : 'bg-pink-500/8 border border-pink-500/10'
+                      }`}>
                         <div className="flex items-center justify-between">
-                          <span className="text-amber-400 text-[10px] font-semibold">
+                          <span className={`text-[10px] font-semibold ${isMale ? 'text-blue-400' : 'text-pink-400'}`}>
                             {segCount} {segCount === 1 ? 'line' : 'lines'}
                           </span>
-                          <span className="text-amber-300 text-[11px] font-bold">
+                          <span className={`text-[11px] font-bold ${isMale ? 'text-blue-300' : 'text-pink-300'}`}>
                             {totalLen < 60 ? `${totalLen.toFixed(1)}s` : `${Math.floor(totalLen / 60)}m ${Math.round(totalLen % 60)}s`}
                           </span>
                         </div>
                         {actorSegs.length > 0 && (
-                          <div className="text-[9px] text-amber-400/50 font-mono">
+                          <div className={`text-[9px] font-mono ${isMale ? 'text-blue-400/40' : 'text-pink-400/40'}`}>
                             {fmt(actorSegs[0]?.start || 0)} ~ {fmt(actorSegs[actorSegs.length - 1]?.end || 0)}
                           </div>
                         )}
