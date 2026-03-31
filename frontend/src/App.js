@@ -9,7 +9,8 @@ import {
   Upload, Play, Download, User, SignOut, Plus, CheckCircle, Spinner,
   MicrophoneStage, VideoCamera, SpeakerHigh, CaretRight, Waveform,
   GenderMale, GenderFemale, Trash, ArrowLeft, Subtitles, FilmStrip,
-  Record, Stop, Microphone, Eye
+  Record, Stop, Microphone, Eye, ShareNetwork, Link, Copy, Globe,
+  MusicNote, FileText, Calendar, Clock
 } from "@phosphor-icons/react";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -119,11 +120,11 @@ const LandingPage = () => {
             <Waveform className="w-3.5 h-3.5" /> AI-Powered Video Dubbing
           </div>
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white mb-6 leading-[1.1] tracking-tight">
-            Chinese to Khmer<br />
+            Any Language to Khmer<br />
             <span className="bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">Video Dubbing</span>
           </h1>
           <p className="text-base text-slate-400 max-w-xl mx-auto mb-10 leading-relaxed">
-            Auto-detect speakers, assign Boy/Girl voices, upload your own voice, and export dubbed videos with Khmer subtitles.
+            Auto-detect Chinese, Thai, Korean, Vietnamese and more. Assign Boy/Girl voices, upload your own voice, and export dubbed videos.
           </p>
           <button onClick={handleLogin}
             className="px-8 py-3.5 bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-semibold rounded-full hover:shadow-xl hover:shadow-cyan-500/20 transition-all text-sm">
@@ -135,9 +136,9 @@ const LandingPage = () => {
         <motion.div initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3, duration: 0.6 }}
           className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-3xl mt-20 w-full">
           {[
-            { icon: <VideoCamera className="w-5 h-5" weight="duotone" />, title: "Speaker Detection", desc: "Auto-detect Boy & Girl speakers in video" },
+            { icon: <Globe className="w-5 h-5" weight="duotone" />, title: "Auto Language Detect", desc: "Chinese, Thai, Korean, Vietnamese & more" },
             { icon: <MicrophoneStage className="w-5 h-5" weight="duotone" />, title: "Custom Voice", desc: "Upload your own voice for each actor" },
-            { icon: <Subtitles className="w-5 h-5" weight="duotone" />, title: "Burn Subtitles", desc: "Khmer subtitles burned into the video" },
+            { icon: <ShareNetwork className="w-5 h-5" weight="duotone" />, title: "Share & Export", desc: "MP3, MP4, SRT subtitles + share link" },
           ].map((f, i) => (
             <div key={i} className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-5 hover:bg-white/[0.05] transition-colors">
               <div className="w-9 h-9 bg-cyan-500/10 rounded-lg flex items-center justify-center text-cyan-400 mb-3">{f.icon}</div>
@@ -186,6 +187,23 @@ const Dashboard = () => {
     return map[s] || 'text-slate-500';
   };
 
+  const statusBg = (s) => {
+    const map = { created: 'bg-slate-500/10', uploaded: 'bg-yellow-500/10', transcribed: 'bg-orange-400/10', translated: 'bg-blue-400/10', audio_ready: 'bg-green-400/10', completed: 'bg-cyan-400/10', error: 'bg-red-400/10' };
+    return map[s] || 'bg-slate-500/10';
+  };
+
+  const formatDate = (dateStr) => {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    const now = new Date();
+    const diff = now - d;
+    if (diff < 60000) return 'Just now';
+    if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+    if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+    if (diff < 604800000) return `${Math.floor(diff / 86400000)}d ago`;
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
+
   return (
     <div className="min-h-screen bg-[#080c14]">
       <header className="bg-[#080c14]/90 backdrop-blur-2xl border-b border-white/5 sticky top-0 z-50">
@@ -232,9 +250,32 @@ const Dashboard = () => {
                     <Trash className="w-4 h-4" />
                   </button>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className={`text-xs font-medium capitalize ${statusColor(p.status)}`}>{p.status?.replace('_', ' ')}</span>
+                <div className="flex items-center gap-2 mb-3">
+                  <span className={`text-[10px] font-semibold capitalize px-2 py-0.5 rounded-full ${statusColor(p.status)} ${statusBg(p.status)}`}>
+                    {p.status?.replace('_', ' ')}
+                  </span>
                   {p.file_type === 'video' && <FilmStrip className="w-3.5 h-3.5 text-slate-600" />}
+                  {p.file_type === 'audio' && <MusicNote className="w-3.5 h-3.5 text-slate-600" />}
+                  {p.detected_language && (
+                    <span className="text-[10px] text-slate-500 flex items-center gap-0.5">
+                      <Globe className="w-3 h-3" /> {p.detected_language?.toUpperCase()}
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center justify-between text-[10px] text-slate-600">
+                  <span className="flex items-center gap-1">
+                    <Calendar className="w-3 h-3" /> {formatDate(p.created_at)}
+                  </span>
+                  {p.segments?.length > 0 && (
+                    <span className="flex items-center gap-1">
+                      <FileText className="w-3 h-3" /> {p.segments.length} lines
+                    </span>
+                  )}
+                  {p.actors?.length > 0 && (
+                    <span className="flex items-center gap-1">
+                      <User className="w-3 h-3" /> {p.actors.length} actors
+                    </span>
+                  )}
                 </div>
               </motion.div>
             ))}
@@ -308,6 +349,9 @@ const Editor = () => {
   const [recordingIdx, setRecordingIdx] = useState(null); // segment index being recorded
   const [recordingActorId, setRecordingActorId] = useState(null); // actor being recorded
   const [recordingTime, setRecordingTime] = useState(0);
+  const [shareToken, setShareToken] = useState(null);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
   const mediaRecorderRef = useRef(null);
   const recordedChunksRef = useRef([]);
   const recordTimerRef = useRef(null);
@@ -343,6 +387,7 @@ const Editor = () => {
       if (r.data.dubbed_audio_path) loadFile(r.data.dubbed_audio_path, 'audio');
       if (r.data.dubbed_video_path) loadFile(r.data.dubbed_video_path, 'video');
       if (r.data.original_file_path && r.data.file_type === 'video') loadFile(r.data.original_file_path, 'original');
+      if (r.data.share_token) setShareToken(r.data.share_token);
     } catch { toast.error("Failed to load project"); navigate("/dashboard"); }
     finally { setLoading(false); }
   };
@@ -492,6 +537,60 @@ const Editor = () => {
 
   const fmt = (s) => { const m = Math.floor(s / 60); return `${m}:${(s % 60).toFixed(1).padStart(4, '0')}`; };
 
+  // Share link
+  const createShareLink = async () => {
+    try {
+      const r = await axios.post(`${API}/projects/${projectId}/share`, {}, { headers: { Authorization: `Bearer ${token}` } });
+      setShareToken(r.data.share_token);
+      setShowShareModal(true);
+    } catch { toast.error("Failed to create share link"); }
+  };
+
+  const removeShareLink = async () => {
+    try {
+      await axios.delete(`${API}/projects/${projectId}/share`, { headers: { Authorization: `Bearer ${token}` } });
+      setShareToken(null);
+      setShowShareModal(false);
+      toast.success("Share link removed");
+    } catch { toast.error("Failed to remove share link"); }
+  };
+
+  const copyShareLink = () => {
+    const url = `${window.location.origin}/shared/${shareToken}`;
+    navigator.clipboard.writeText(url);
+    setShareCopied(true);
+    setTimeout(() => setShareCopied(false), 2000);
+    toast.success("Link copied!");
+  };
+
+  // Download SRT
+  const downloadSrt = async () => {
+    try {
+      const r = await axios.get(`${API}/projects/${projectId}/download-srt`, {
+        headers: { Authorization: `Bearer ${token}` }, responseType: 'blob'
+      });
+      const url = URL.createObjectURL(r.data);
+      const a = document.createElement('a');
+      a.href = url; a.download = `${project?.title || 'subtitles'}_khmer.srt`; a.click();
+      URL.revokeObjectURL(url);
+    } catch { toast.error("Failed to download SRT"); }
+  };
+
+  // Download MP3
+  const downloadMp3 = async () => {
+    try {
+      toast.info("Converting to MP3...");
+      const r = await axios.get(`${API}/projects/${projectId}/download-mp3`, {
+        headers: { Authorization: `Bearer ${token}` }, responseType: 'blob', timeout: 60000
+      });
+      const url = URL.createObjectURL(r.data);
+      const a = document.createElement('a');
+      a.href = url; a.download = `${project?.title || 'dubbed'}_khmer.mp3`; a.click();
+      URL.revokeObjectURL(url);
+      toast.success("MP3 downloaded!");
+    } catch { toast.error("Failed to download MP3"); }
+  };
+
   // Preview single line TTS
   const previewLine = async (idx) => {
     const seg = segments[idx];
@@ -532,9 +631,60 @@ const Editor = () => {
             <ArrowLeft className="w-5 h-5" />
           </button>
           <span className="text-white font-semibold text-sm">{project?.title}</span>
+          {project?.detected_language && (
+            <span className="text-[10px] text-slate-400 bg-white/[0.04] px-2 py-0.5 rounded-full flex items-center gap-1" data-testid="detected-language">
+              <Globe className="w-3 h-3" /> {project.detected_language?.toUpperCase()}
+            </span>
+          )}
         </div>
-        <StepProgress currentStep={step} steps={["Upload", "Detect", "Translate", "Audio", "Video"]} />
+        <div className="flex items-center gap-2">
+          <StepProgress currentStep={step} steps={["Upload", "Detect", "Translate", "Audio", "Video"]} />
+          {(audioUrl || videoUrl) && (
+            <button onClick={createShareLink} data-testid="share-btn"
+              className="ml-2 px-3 py-1.5 text-[11px] font-semibold rounded-full flex items-center gap-1.5 bg-white/[0.05] border border-white/[0.08] text-slate-300 hover:text-white hover:border-cyan-500/30 transition-all">
+              <ShareNetwork className="w-3.5 h-3.5" /> Share
+            </button>
+          )}
+        </div>
       </header>
+
+      {/* Share Modal */}
+      <AnimatePresence>
+        {showShareModal && shareToken && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center"
+            onClick={() => setShowShareModal(false)}>
+            <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} exit={{ scale: 0.9 }}
+              className="bg-[#0d1220] border border-white/10 rounded-2xl p-6 max-w-md w-full mx-4"
+              onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center gap-2 mb-4">
+                <ShareNetwork className="w-5 h-5 text-cyan-400" />
+                <h3 className="text-white font-semibold">Share Project</h3>
+              </div>
+              <p className="text-slate-400 text-xs mb-4">Anyone with this link can view and download the dubbed video.</p>
+              <div className="flex items-center gap-2 bg-white/[0.03] border border-white/[0.08] rounded-lg p-2">
+                <Link className="w-4 h-4 text-slate-500 flex-shrink-0" />
+                <input type="text" readOnly value={`${window.location.origin}/shared/${shareToken}`}
+                  className="flex-1 bg-transparent text-white text-xs outline-none" />
+                <button onClick={copyShareLink} data-testid="copy-share-link"
+                  className={`px-3 py-1.5 rounded-md text-[11px] font-semibold transition-all flex items-center gap-1 ${
+                    shareCopied ? 'bg-green-500/20 text-green-400' : 'bg-cyan-500/15 text-cyan-400 hover:bg-cyan-500/25'
+                  }`}>
+                  {shareCopied ? <><CheckCircle className="w-3 h-3" weight="fill" /> Copied</> : <><Copy className="w-3 h-3" /> Copy</>}
+                </button>
+              </div>
+              <div className="flex justify-between mt-4">
+                <button onClick={removeShareLink} className="text-red-400/70 text-[11px] hover:text-red-400 transition-colors">
+                  Remove link
+                </button>
+                <button onClick={() => setShowShareModal(false)} className="px-4 py-1.5 bg-white/[0.05] text-white text-[11px] font-semibold rounded-lg hover:bg-white/[0.08] transition-colors">
+                  Done
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div className="flex-1 flex overflow-hidden">
         {/* Left Sidebar */}
@@ -653,16 +803,28 @@ const Editor = () => {
                 {audioUrl && (
                   <a href={audioUrl} download={`${project?.title || 'dubbed'}_khmer.wav`} data-testid="download-audio-btn"
                     className="flex-1 py-2 bg-green-500/10 border border-green-500/20 text-green-400 text-center text-[11px] font-semibold rounded-lg hover:bg-green-500/20 flex items-center justify-center gap-1">
-                    <Download className="w-3 h-3" /> Audio
+                    <Download className="w-3 h-3" /> WAV
                   </a>
+                )}
+                {audioUrl && (
+                  <button onClick={downloadMp3} data-testid="download-mp3-btn"
+                    className="flex-1 py-2 bg-green-500/10 border border-green-500/20 text-green-400 text-center text-[11px] font-semibold rounded-lg hover:bg-green-500/20 flex items-center justify-center gap-1">
+                    <MusicNote className="w-3 h-3" /> MP3
+                  </button>
                 )}
                 {videoUrl && (
                   <a href={videoUrl} download={`${project?.title || 'dubbed'}_khmer.mp4`} data-testid="download-video-btn"
                     className="flex-1 py-2 bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-center text-[11px] font-semibold rounded-lg hover:bg-cyan-500/20 flex items-center justify-center gap-1">
-                    <Download className="w-3 h-3" /> Video
+                    <Download className="w-3 h-3" /> MP4
                   </a>
                 )}
               </div>
+              {segments.some(s => s.translated) && (
+                <button onClick={downloadSrt} data-testid="download-srt-btn"
+                  className="w-full py-2 bg-purple-500/10 border border-purple-500/20 text-purple-400 text-[11px] font-semibold rounded-lg hover:bg-purple-500/20 flex items-center justify-center gap-1">
+                  <Subtitles className="w-3 h-3" /> Download SRT Subtitle
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -995,6 +1157,152 @@ const Editor = () => {
   );
 };
 
+// Shared Project Page (Public - no auth needed)
+const SharedProject = () => {
+  const location = useLocation();
+  const shareToken = location.pathname.split('/shared/')[1];
+  const [project, setProject] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const fetchShared = async () => {
+      try {
+        const r = await axios.get(`${API}/shared/${shareToken}`);
+        setProject(r.data);
+      } catch { setError("Project not found or link expired"); }
+      finally { setLoading(false); }
+    };
+    if (shareToken) fetchShared();
+  }, [shareToken]);
+
+  if (loading) return <div className="min-h-screen bg-[#080c14] flex items-center justify-center"><Spinner className="w-12 h-12 text-cyan-400 animate-spin" /></div>;
+  if (error) return (
+    <div className="min-h-screen bg-[#080c14] flex items-center justify-center text-center px-6">
+      <div>
+        <VideoCamera className="w-16 h-16 text-slate-700 mx-auto mb-4" weight="duotone" />
+        <h2 className="text-white text-xl font-bold mb-2">Not Found</h2>
+        <p className="text-slate-500 text-sm mb-6">{error}</p>
+        <a href="/" className="px-5 py-2.5 bg-cyan-500 text-white text-sm font-semibold rounded-full hover:bg-cyan-400 transition-colors">
+          Go to KhmerDub
+        </a>
+      </div>
+    </div>
+  );
+
+  const LANG_NAMES = { zh: "Chinese", th: "Thai", vi: "Vietnamese", ko: "Korean", ja: "Japanese", en: "English" };
+
+  return (
+    <div className="min-h-screen bg-[#080c14]" data-testid="shared-project-page">
+      <header className="bg-[#080c14]/90 backdrop-blur-2xl border-b border-white/5">
+        <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 bg-cyan-500/10 border border-cyan-500/20 rounded-lg flex items-center justify-center">
+              <MicrophoneStage className="w-5 h-5 text-cyan-400" weight="fill" />
+            </div>
+            <span className="text-lg font-semibold text-white">KhmerDub</span>
+          </div>
+          <a href="/" className="px-4 py-2 bg-white/[0.05] text-white text-xs font-semibold rounded-full hover:bg-white/[0.08] transition-colors">
+            Try it free
+          </a>
+        </div>
+      </header>
+
+      <main className="max-w-4xl mx-auto px-6 py-10">
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-white mb-2">{project.title}</h1>
+          <div className="flex items-center gap-3 text-xs text-slate-500">
+            {project.detected_language && (
+              <span className="flex items-center gap-1 bg-white/[0.04] px-2 py-0.5 rounded-full">
+                <Globe className="w-3 h-3" /> {LANG_NAMES[project.detected_language] || project.detected_language} to Khmer
+              </span>
+            )}
+            {project.segments?.length > 0 && (
+              <span>{project.segments.length} segments</span>
+            )}
+            {project.actors?.length > 0 && (
+              <span>{project.actors.length} actors</span>
+            )}
+          </div>
+        </div>
+
+        {/* Video/Audio Player */}
+        {project.has_video && (
+          <div className="mb-6">
+            <video src={`${API}/shared/${shareToken}/video`} controls className="w-full rounded-xl bg-black max-h-[400px]" data-testid="shared-video" />
+          </div>
+        )}
+        {!project.has_video && project.has_audio && (
+          <div className="mb-6 bg-white/[0.02] border border-white/[0.06] rounded-xl p-4">
+            <audio src={`${API}/shared/${shareToken}/audio`} controls className="w-full" data-testid="shared-audio" />
+          </div>
+        )}
+
+        {/* Download buttons */}
+        <div className="flex gap-3 mb-8">
+          {project.has_video && (
+            <a href={`${API}/shared/${shareToken}/video`} download data-testid="shared-download-video"
+              className="px-5 py-2.5 bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-sm font-semibold rounded-lg hover:bg-cyan-500/20 flex items-center gap-2 transition-colors">
+              <Download className="w-4 h-4" /> Download Video
+            </a>
+          )}
+          {project.has_audio && (
+            <a href={`${API}/shared/${shareToken}/audio`} download data-testid="shared-download-audio"
+              className="px-5 py-2.5 bg-green-500/10 border border-green-500/20 text-green-400 text-sm font-semibold rounded-lg hover:bg-green-500/20 flex items-center gap-2 transition-colors">
+              <Download className="w-4 h-4" /> Download Audio
+            </a>
+          )}
+          {project.segments?.some(s => s.translated) && (
+            <a href={`${API}/shared/${shareToken}/srt`} download data-testid="shared-download-srt"
+              className="px-5 py-2.5 bg-purple-500/10 border border-purple-500/20 text-purple-400 text-sm font-semibold rounded-lg hover:bg-purple-500/20 flex items-center gap-2 transition-colors">
+              <Subtitles className="w-4 h-4" /> Download SRT
+            </a>
+          )}
+        </div>
+
+        {/* Subtitle preview table */}
+        {project.segments?.length > 0 && (
+          <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl overflow-hidden">
+            <div className="px-4 py-3 border-b border-white/5">
+              <h3 className="text-white font-semibold text-sm">Subtitles</h3>
+            </div>
+            <div className="max-h-[400px] overflow-y-auto">
+              <table className="w-full text-xs">
+                <thead className="bg-[#0a0e18] sticky top-0">
+                  <tr className="text-slate-600 text-[10px] uppercase">
+                    <th className="px-4 py-2 text-left w-10">#</th>
+                    <th className="px-4 py-2 text-left w-20">Time</th>
+                    <th className="px-4 py-2 text-left">Original</th>
+                    <th className="px-4 py-2 text-left">Khmer</th>
+                    <th className="px-4 py-2 text-left w-24">Speaker</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {project.segments.map((seg, i) => (
+                    <tr key={i} className="border-b border-white/[0.03]">
+                      <td className="px-4 py-2 text-slate-600">{i + 1}</td>
+                      <td className="px-4 py-2 text-slate-500 font-mono text-[10px]">
+                        {Math.floor((seg.start||0)/60)}:{((seg.start||0)%60).toFixed(0).padStart(2,'0')}
+                      </td>
+                      <td className="px-4 py-2 text-white/70">{seg.original}</td>
+                      <td className="px-4 py-2 text-cyan-300/80">{seg.translated}</td>
+                      <td className="px-4 py-2">
+                        <span className={`text-[10px] font-semibold ${seg.gender === 'male' ? 'text-blue-400' : 'text-pink-400'}`}>
+                          {seg.gender === 'male' ? 'Boy' : 'Girl'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </main>
+    </div>
+  );
+};
+
 // Helpers
 const useProjectId = () => {
   const location = useLocation();
@@ -1017,6 +1325,7 @@ function AppRouter() {
       <Route path="/" element={<LandingPage />} />
       <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
       <Route path="/editor/:projectId" element={<ProtectedRoute><Editor /></ProtectedRoute>} />
+      <Route path="/shared/:shareToken" element={<SharedProject />} />
     </Routes>
   );
 }

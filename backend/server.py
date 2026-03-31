@@ -142,6 +142,14 @@ class ProjectUpdate(BaseModel):
 class TranslateRequest(BaseModel):
     chinese_text: str
 
+LANGUAGE_NAMES = {
+    "zh": "Chinese", "th": "Thai", "vi": "Vietnamese", "ko": "Korean",
+    "ja": "Japanese", "en": "English", "km": "Khmer", "lo": "Lao",
+    "my": "Burmese", "id": "Indonesian", "ms": "Malay", "fr": "French",
+    "de": "German", "es": "Spanish", "pt": "Portuguese", "ru": "Russian",
+    "ar": "Arabic", "hi": "Hindi", "tl": "Tagalog", "it": "Italian",
+}
+
 # Auth
 async def get_current_user(authorization: str = Header(None)) -> User:
     token = None
@@ -224,6 +232,7 @@ async def create_project(project: ProjectCreate, authorization: str = Header(Non
         "extracted_audio_path": None, "original_text": None, "translated_text": None,
         "dubbed_audio_path": None, "dubbed_video_path": None, "segments": [], "actors": [],
         "status": "created", "voice": "sophea", "female_voice": "sophea", "male_voice": "dara",
+        "detected_language": None, "share_token": None,
         "created_at": now, "updated_at": now
     }
     await db.projects.insert_one(doc)
@@ -399,7 +408,12 @@ async def transcribe_segments(project_id: str, authorization: str = Header(None)
 
             stt = OpenAISpeechToText(api_key=EMERGENT_LLM_KEY)
             with open(audio_path, "rb") as audio_file:
-                response = await stt.transcribe(file=audio_file, model="whisper-1", language="zh", response_format="verbose_json")
+                response = await stt.transcribe(file=audio_file, model="whisper-1", response_format="verbose_json")
+
+            # Auto-detect language from Whisper response
+            detected_lang = getattr(response, 'language', None) or 'zh'
+            detected_lang_name = LANGUAGE_NAMES.get(detected_lang, detected_lang)
+            logger.info(f"Auto-detected language: {detected_lang} ({detected_lang_name})")
 
             raw_segments = response.segments if hasattr(response, 'segments') else []
             
@@ -561,6 +575,7 @@ Include ALL indices 0 to """ + str(len(segments)-1) + """. gender must be "male"
                 {"project_id": project_id},
                 {"$set": {
                     "segments": segments, "actors": actors,
+                    "detected_language": detected_lang,
                     "status": "transcribed", "updated_at": datetime.now(timezone.utc).isoformat()
                 }}
             )
@@ -590,10 +605,13 @@ async def translate_segments(project_id: str, authorization: str = Header(None))
         {"$set": {"status": "translating", "updated_at": datetime.now(timezone.utc).isoformat()}}
     )
     try:
+        detected_lang = project.get("detected_language", "zh")
+        source_lang_name = LANGUAGE_NAMES.get(detected_lang, detected_lang)
+        
         chat = LlmChat(
             api_key=EMERGENT_LLM_KEY,
             session_id=f"translate_seg_{project_id}_{uuid.uuid4().hex[:6]}",
-            system_message="""You are a Chinese to Khmer translator. Translate each numbered Chinese line to Khmer.
+            system_message=f"""You are a {source_lang_name} to Khmer translator. Translate each numbered {source_lang_name} line to Khmer.
 Return translations in exact same format: number followed by Khmer translation.
 Only output translations, nothing else."""
         )
@@ -872,6 +890,137 @@ async def quick_translate(request: TranslateRequest, authorization: str = Header
     chat.with_model("openai", "gpt-5.2")
     translated = await chat.send_message(UserMessage(text=request.chinese_text))
     return {"original": request.chinese_text, "translated": translated}
+
+# Download SRT subtitle file
+@api_router.get("/projects/{project_id}/download-srt")
+async def download_srt(project_id: str, authorization: str = Header(None)):
+    user = await get_current_user(authorization)
+    project = await db.projects.find_one({"project_id": project_id, "user_id": user.user_id})
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    segments = project.get("segments", [])
+    if not segments:
+        raise HTTPException(status_code=400, detail="No segments available")
+    srt_content = generate_srt(segments)
+    filename = f"{project.get('title', 'subtitles')}_khmer.srt"
+    return Response(
+        content=srt_content.encode("utf-8"),
+        media_type="application/x-subrip",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
+
+# Download dubbed audio as MP3
+@api_router.get("/projects/{project_id}/download-mp3")
+async def download_mp3(project_id: str, authorization: str = Header(None)):
+    user = await get_current_user(authorization)
+    project = await db.projects.find_one({"project_id": project_id, "user_id": user.user_id})
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    if not project.get("dubbed_audio_path"):
+        raise HTTPException(status_code=400, detail="No dubbed audio available")
+    audio_data, _ = get_object(project["dubbed_audio_path"])
+    # Convert WAV to MP3 using ffmpeg
+    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as wav_tmp:
+        wav_tmp.write(audio_data)
+        wav_path = wav_tmp.name
+    mp3_path = wav_path.replace(".wav", ".mp3")
+    try:
+        cmd = ["ffmpeg", "-y", "-i", wav_path, "-codec:a", "libmp3lame", "-b:a", "192k", mp3_path]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            raise Exception(f"FFmpeg error: {result.stderr}")
+        with open(mp3_path, "rb") as f:
+            mp3_data = f.read()
+        filename = f"{project.get('title', 'dubbed')}_khmer.mp3"
+        return Response(
+            content=mp3_data,
+            media_type="audio/mpeg",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+        )
+    finally:
+        for p in [wav_path, mp3_path]:
+            if os.path.exists(p):
+                os.unlink(p)
+
+# Generate share link
+@api_router.post("/projects/{project_id}/share")
+async def create_share_link(project_id: str, authorization: str = Header(None)):
+    user = await get_current_user(authorization)
+    project = await db.projects.find_one({"project_id": project_id, "user_id": user.user_id})
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    share_token = project.get("share_token")
+    if not share_token:
+        share_token = f"share_{uuid.uuid4().hex[:16]}"
+        await db.projects.update_one(
+            {"project_id": project_id},
+            {"$set": {"share_token": share_token, "updated_at": datetime.now(timezone.utc).isoformat()}}
+        )
+    return {"share_token": share_token}
+
+# Remove share link
+@api_router.delete("/projects/{project_id}/share")
+async def remove_share_link(project_id: str, authorization: str = Header(None)):
+    user = await get_current_user(authorization)
+    project = await db.projects.find_one({"project_id": project_id, "user_id": user.user_id})
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    await db.projects.update_one(
+        {"project_id": project_id},
+        {"$set": {"share_token": None, "updated_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    return {"success": True}
+
+# Public shared project view (no auth needed)
+@api_router.get("/shared/{share_token}")
+async def get_shared_project(share_token: str):
+    project = await db.projects.find_one({"share_token": share_token}, {"_id": 0})
+    if not project:
+        raise HTTPException(status_code=404, detail="Shared project not found")
+    # Return only safe public info
+    return {
+        "title": project.get("title"),
+        "status": project.get("status"),
+        "detected_language": project.get("detected_language"),
+        "file_type": project.get("file_type"),
+        "segments": project.get("segments", []),
+        "actors": project.get("actors", []),
+        "has_video": bool(project.get("dubbed_video_path")),
+        "has_audio": bool(project.get("dubbed_audio_path")),
+        "created_at": project.get("created_at"),
+    }
+
+# Public file download (no auth, uses share token)
+@api_router.get("/shared/{share_token}/video")
+async def get_shared_video(share_token: str):
+    project = await db.projects.find_one({"share_token": share_token})
+    if not project or not project.get("dubbed_video_path"):
+        raise HTTPException(status_code=404, detail="Not found")
+    data, content_type = get_object(project["dubbed_video_path"])
+    return Response(content=data, media_type=content_type)
+
+@api_router.get("/shared/{share_token}/audio")
+async def get_shared_audio(share_token: str):
+    project = await db.projects.find_one({"share_token": share_token})
+    if not project or not project.get("dubbed_audio_path"):
+        raise HTTPException(status_code=404, detail="Not found")
+    data, content_type = get_object(project["dubbed_audio_path"])
+    return Response(content=data, media_type=content_type)
+
+@api_router.get("/shared/{share_token}/srt")
+async def get_shared_srt(share_token: str):
+    project = await db.projects.find_one({"share_token": share_token})
+    if not project:
+        raise HTTPException(status_code=404, detail="Not found")
+    segments = project.get("segments", [])
+    if not segments:
+        raise HTTPException(status_code=400, detail="No subtitles")
+    srt_content = generate_srt(segments)
+    return Response(
+        content=srt_content.encode("utf-8"),
+        media_type="application/x-subrip",
+        headers={"Content-Disposition": f'attachment; filename="{project.get("title", "subtitles")}_khmer.srt"'}
+    )
 
 app.include_router(api_router)
 app.add_middleware(CORSMiddleware, allow_credentials=True, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
