@@ -482,8 +482,15 @@ RULES:
 - Different conversation turns = likely DIFFERENT speakers
 
 Return ONLY valid JSON array (no extra text):
-[{"idx": 0, "speaker": "SPEAKER_00", "gender": "male"}, ...]
-Must include ALL line indices (0 to """ + str(len(segments)-1) + """)."""
+[{"idx": 0, "speaker": "SPEAKER_00", "gender": "male", "role": "Doctor"}, ...]
+Must include ALL line indices (0 to """ + str(len(segments)-1) + """).
+
+For "role" field: Give a short character name based on context. Examples:
+- 九爷/Boss/Master → "Boss"  
+- Doctor/医生 → "Doctor"
+- Servant/subordinate → "Servant"
+- Wife/girlfriend → "Wife"
+- If unclear, use "Man 1", "Woman 1" etc."""
                 )
                 detect_chat.with_model("openai", "gpt-5.2")
                 
@@ -507,9 +514,12 @@ Must include ALL line indices (0 to """ + str(len(segments)-1) + """)."""
                             if 0 <= idx < len(segments):
                                 gender = d.get("gender", "female")
                                 speaker = d.get("speaker", "SPEAKER_00")
+                                role = d.get("role", "")
                                 segments[idx]["gender"] = gender
                                 segments[idx]["speaker"] = speaker
                                 segments[idx]["voice"] = "dara" if gender == "male" else "sophea"
+                                if role:
+                                    segments[idx]["role"] = role
                         
                         # Verify: count unique speakers detected
                         unique_speakers = set(s["speaker"] for s in segments)
@@ -525,6 +535,7 @@ Must include ALL line indices (0 to """ + str(len(segments)-1) + """)."""
 
             # Build actors from unique speakers with speaking time ranges
             speaker_info = {}
+            speaker_roles = {}
             for seg in segments:
                 spk = seg.get("speaker", "SPEAKER_00")
                 if spk not in speaker_info:
@@ -535,22 +546,26 @@ Must include ALL line indices (0 to """ + str(len(segments)-1) + """)."""
                         "total_time": 0,
                         "line_count": 0
                     }
+                # Capture the role from the first segment that has one
+                if spk not in speaker_roles and seg.get("role"):
+                    speaker_roles[spk] = seg["role"]
                 info = speaker_info[spk]
                 info["last_end"] = max(info["last_end"], seg.get("end", 0))
                 info["first_start"] = min(info["first_start"], seg.get("start", 0))
                 info["total_time"] += (seg.get("end", 0) - seg.get("start", 0))
                 info["line_count"] += 1
 
-            man_count = 0
-            woman_count = 0
             actors = []
             for spk, info in speaker_info.items():
-                if info["gender"] == "male":
-                    man_count += 1
-                    label = "Man" if man_count == 1 else f"Man {man_count}"
+                # Use detected role, fallback to "Man"/"Woman"
+                role = speaker_roles.get(spk, "")
+                if role:
+                    label = role
+                elif info["gender"] == "male":
+                    label = "Man"
                 else:
-                    woman_count += 1
-                    label = "Woman" if woman_count == 1 else f"Woman {woman_count}"
+                    label = "Woman"
+                
                 actors.append({
                     "id": spk,
                     "label": label,
