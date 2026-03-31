@@ -645,12 +645,12 @@ async def transcribe_segments(project_id: str, authorization: str = Header(None)
                     "voice": "sophea"
                 })
 
-            # Step 2: Detect speakers using GPT (text-based, more reliable than pitch)
+            # Step 2: Detect speakers using GPT (text-based)
             if segments:
                 detect_chat = LlmChat(
                     api_key=EMERGENT_LLM_KEY,
                     session_id=f"detect_{project_id}_{uuid.uuid4().hex[:6]}",
-                    system_message="""You analyze video dialogue to identify speakers, their GENDER, ROLE, and estimated AGE.
+                    system_message="""You analyze video dialogue to identify speakers, their GENDER and ROLE.
 
 CRITICAL GENDER RULES:
 - Characters with titles 爷/哥/先生/老板/少爷/大哥 = MALE
@@ -669,26 +669,16 @@ SPEAKER GROUPING:
 - Same person consecutive lines = same ID
 - When someone is ADDRESSED by title, the REPLY is a different person
 
-AGE ESTIMATION:
-- Look at how the character speaks and their role
-- 爷/奶奶/老 = elderly (60+)
-- 叔/阿姨/太太/老板 = middle age (35-55)
-- 哥/姐/先生/女士 = adult (25-40)
-- 弟弟/妹妹/小 = young (15-25)
-- Narrators/voiceover = adult (25-35) unless obvious
-- If character name is given (e.g. 杜清禾), estimate from context
-
 ROLE DETECTION:
 - Identify the character's role: Narrator, Boss, Wife, Doctor, Student, etc.
 - If character has a proper name (e.g. 杜清禾), translate or romanize it to English (e.g. "Du Qinghe")
-- 旁白/自述 = Narrator
-- ALL role names MUST be in English. Never return Chinese characters in the role field.
+- ALL role names MUST be in English.
 
 IMPORTANT: You MUST identify at least some speakers as "male" if the dialogue contains male characters.
 
 Return ONLY JSON array:
-[{"idx": 0, "speaker": "SPEAKER_00", "gender": "male", "role": "Boss", "age": "40s"}, ...]
-Include ALL indices 0 to """ + str(len(segments)-1) + """. gender must be "male" or "female". age should be like "20s", "30s", "40s", "50s", "60s" etc. role MUST be in English."""
+[{"idx": 0, "speaker": "SPEAKER_00", "gender": "male", "role": "Boss"}, ...]
+Include ALL indices 0 to """ + str(len(segments)-1) + """. gender must be "male" or "female". role MUST be in English."""
                 )
                 detect_chat.with_model("openai", "gpt-5.2")
                 
@@ -713,14 +703,11 @@ Include ALL indices 0 to """ + str(len(segments)-1) + """. gender must be "male"
                                 gender = d.get("gender", "female")
                                 speaker = d.get("speaker", "SPEAKER_00")
                                 role = d.get("role", "")
-                                age = d.get("age", "")
                                 segments[idx]["gender"] = gender
                                 segments[idx]["speaker"] = speaker
                                 segments[idx]["voice"] = "dara" if gender == "male" else "sophea"
                                 if role:
                                     segments[idx]["role"] = role
-                                if age:
-                                    segments[idx]["age"] = age
                         
                         # Verify: count unique speakers detected
                         unique_speakers = set(s["speaker"] for s in segments)
@@ -737,7 +724,6 @@ Include ALL indices 0 to """ + str(len(segments)-1) + """. gender must be "male"
             # Build actors from unique speakers with speaking time ranges
             speaker_info = {}
             speaker_roles = {}
-            speaker_ages = {}
             for seg in segments:
                 spk = seg.get("speaker", "SPEAKER_00")
                 if spk not in speaker_info:
@@ -750,8 +736,6 @@ Include ALL indices 0 to """ + str(len(segments)-1) + """. gender must be "male"
                     }
                 if spk not in speaker_roles and seg.get("role"):
                     speaker_roles[spk] = seg["role"]
-                if spk not in speaker_ages and seg.get("age"):
-                    speaker_ages[spk] = seg["age"]
                 info = speaker_info[spk]
                 info["last_end"] = max(info["last_end"], seg.get("end", 0))
                 info["first_start"] = min(info["first_start"], seg.get("start", 0))
@@ -761,34 +745,14 @@ Include ALL indices 0 to """ + str(len(segments)-1) + """. gender must be "male"
             actors = []
             for spk, info in speaker_info.items():
                 role = speaker_roles.get(spk, "")
-                age = speaker_ages.get(spk, "")
                 gender_tag = "Boy" if info["gender"] == "male" else "Girl"
-                # Build label: Role (Gender, Age)
-                if role and age:
-                    label = f"{role} ({gender_tag}, ~{age})"
-                elif role:
-                    label = f"{role} ({gender_tag})"
-                elif age:
-                    label = f"{gender_tag} (~{age})"
-                else:
-                    label = gender_tag
-                
-                # Auto-set pitch from detected age
-                auto_pitch = 0
-                if age:
-                    try:
-                        age_num = int(''.join(c for c in age if c.isdigit()) or '30')
-                        auto_pitch = max(-6, min(6, round((30 - age_num) / 5)))
-                    except:
-                        auto_pitch = 0
+                label = f"{role} ({gender_tag})" if role else gender_tag
                 
                 actors.append({
                     "id": spk,
                     "label": label,
                     "gender": info["gender"],
                     "role": role,
-                    "age": age,
-                    "pitch": auto_pitch,
                     "voice": "dara" if info["gender"] == "male" else "sophea",
                     "custom_voice": None,
                     "total_speaking_time": round(info["total_time"], 1),
@@ -889,7 +853,6 @@ class PreviewRequest(BaseModel):
     text: str
     gender: str = "female"
     speed: int = 2
-    pitch: int = 0
 
 @api_router.post("/projects/{project_id}/preview-tts")
 async def preview_tts(project_id: str, req: PreviewRequest, authorization: str = Header(None)):
@@ -902,23 +865,17 @@ async def preview_tts(project_id: str, req: PreviewRequest, authorization: str =
     rate = f"+{req.speed}%" if req.speed >= 0 else f"{req.speed}%"
     
     tts_path = os.path.join(tempfile.gettempdir(), f"preview_{uuid.uuid4().hex}.mp3")
-    pitched_path = os.path.join(tempfile.gettempdir(), f"preview_pitched_{uuid.uuid4().hex}.mp3")
     try:
         communicate = edge_tts.Communicate(req.text, voice=voice, rate=rate)
         await communicate.save(tts_path)
-        current_path = tts_path
-        if req.pitch != 0:
-            adjust_pitch(tts_path, pitched_path, req.pitch)
-            current_path = pitched_path
-        with open(current_path, "rb") as f:
+        with open(tts_path, "rb") as f:
             audio_data = f.read()
         return Response(content=audio_data, media_type="audio/mpeg")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     finally:
-        for p in [tts_path, pitched_path]:
-            if os.path.exists(p):
-                os.unlink(p)
+        if os.path.exists(tts_path):
+            os.unlink(tts_path)
 
 # Generate timestamp-aligned audio
 @api_router.post("/projects/{project_id}/generate-audio-segments")
@@ -1002,33 +959,23 @@ async def generate_audio_segments(project_id: str, speed: int = Query(2), author
         async def generate_single_tts(seg):
             speaker = seg.get("speaker", "")
             seg_gender = seg.get("gender", "female")
-            actor_pitch = 0
             for a in actors:
                 if a["id"] == speaker:
                     seg_gender = a.get("gender", seg_gender)
-                    actor_pitch = a.get("pitch", 0)
                     break
             edge_voice = get_edge_voice(target_lang, seg_gender, actor_ai_voice_map.get(speaker))
             tts_path = os.path.join(tempfile.gettempdir(), f"tts_{uuid.uuid4().hex}.mp3")
-            pitched_path = os.path.join(tempfile.gettempdir(), f"tts_pitched_{uuid.uuid4().hex}.mp3")
             try:
                 communicate = edge_tts.Communicate(seg["translated"], voice=edge_voice, rate=f"+{speed}%" if speed >= 0 else f"{speed}%")
                 await communicate.save(tts_path)
-                current_path = tts_path
-                if actor_pitch != 0:
-                    adjust_pitch(tts_path, pitched_path, actor_pitch)
-                    current_path = pitched_path
-                audio_seg = AudioSegment.from_file(current_path)
-                for p in [tts_path, pitched_path]:
-                    if os.path.exists(p):
-                        os.unlink(p)
+                audio_seg = AudioSegment.from_file(tts_path)
+                os.unlink(tts_path)
                 return (seg, audio_seg)
             except Exception as e:
                 logger.warning(f"Edge TTS failed for segment: {e}")
-                for p in [tts_path, pitched_path]:
-                    if os.path.exists(p):
-                        try: os.unlink(p)
-                        except: pass
+                if os.path.exists(tts_path):
+                    try: os.unlink(tts_path)
+                    except: pass
                 return None
 
         tts_pairs = []

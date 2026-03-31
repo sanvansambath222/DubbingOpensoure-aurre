@@ -856,7 +856,7 @@ const Editor = () => {
     setPreviewingIdx(idx);
     try {
       const r = await axios.post(`${API}/projects/${projectId}/preview-tts`, 
-        { text, gender: seg.gender || 'female', speed: ttsSpeed, pitch: (() => { const a = actors.find(a => a.id === seg.speaker); return a?.pitch || 0; })() },
+        { text, gender: seg.gender || 'female', speed: ttsSpeed },
         { headers: { Authorization: `Bearer ${token}` }, responseType: 'blob', timeout: 30000 }
       );
       const url = URL.createObjectURL(r.data);
@@ -1209,15 +1209,6 @@ const Editor = () => {
                               <option value="female">Girl</option>
                               <option value="male">Boy</option>
                             </select>
-                            {actor.age && (
-                              <span className={`text-[8px] font-semibold px-1 py-0.5 rounded ${
-                                isMale
-                                  ? (d ? 'bg-blue-900/40 text-blue-300' : 'bg-blue-50 text-blue-600')
-                                  : (d ? 'bg-pink-900/40 text-pink-300' : 'bg-pink-50 text-pink-600')
-                              }`} data-testid={`actor-age-${actor.id}`}>
-                                ~{actor.age}
-                              </span>
-                            )}
                             {actor.role && (
                               <span className={`text-[8px] px-1 py-0.5 rounded font-medium ${d?'bg-cyan-900/30 text-cyan-300':'bg-cyan-50 text-cyan-700'}`} data-testid={`actor-role-${actor.id}`}>
                                 {actor.role}
