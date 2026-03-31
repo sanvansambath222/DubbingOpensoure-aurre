@@ -104,7 +104,7 @@ const AuthCallback = () => {
     };
     processAuth();
   }, [navigate, login]);
-  return <div className="min-h-screen bg-zinc-50 flex items-center justify-center"><Spinner className="w-12 h-12 text-zinc-700 animate-spin" weight="bold" /></div>;
+  return <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 flex items-center justify-center"><Spinner className="w-12 h-12 text-zinc-700 animate-spin" weight="bold" /></div>;
 };
 
 // Landing Page
@@ -168,51 +168,12 @@ const LandingPage = () => {
       </main>
     </div>
   );
-          </button>
-        </div>
-      </header>
-
-      <main className="relative z-10 min-h-screen flex flex-col items-center justify-center px-6 pt-20">
-        <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }} className="max-w-3xl text-center">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-zinc-100 border border-zinc-200 rounded-sm text-zinc-600 text-xs font-bold uppercase tracking-[0.15em] mb-8">
-            <Waveform className="w-3.5 h-3.5" /> AI-Powered Dubbing
-          </div>
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-medium text-zinc-950 mb-6 leading-[1.1] tracking-tighter" style={{ fontFamily: "'Outfit', sans-serif" }}>
-            Any Language to Khmer<br />
-            <span className="text-zinc-400">Video Dubbing</span>
-          </h1>
-          <p className="text-base text-zinc-500 max-w-xl mx-auto mb-10 leading-relaxed">
-            Auto-detect Chinese, Thai, Korean, Vietnamese and more. Assign Boy/Girl voices, upload your own voice, and export dubbed videos.
-          </p>
-          <button onClick={handleLogin} data-testid="get-started-btn"
-            className="px-8 py-3.5 bg-zinc-950 text-zinc-950 font-semibold rounded-sm hover:bg-zinc-800 transition-colors text-sm">
-            Get Started Free
-          </button>
-        </motion.div>
-
-        {/* Feature cards */}
-        <motion.div initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3, duration: 0.6 }}
-          className="grid grid-cols-1 sm:grid-cols-3 gap-0 max-w-3xl mt-20 w-full border border-black/10 rounded-sm overflow-hidden">
-          {[
-            { icon: <Globe className="w-5 h-5" weight="duotone" />, title: "Auto Language Detect", desc: "Chinese, Thai, Korean, Vietnamese & more" },
-            { icon: <MicrophoneStage className="w-5 h-5" weight="duotone" />, title: "Custom Voice", desc: "Upload your own voice for each actor" },
-            { icon: <ShareNetwork className="w-5 h-5" weight="duotone" />, title: "Share & Export", desc: "MP3, MP4, SRT subtitles + share link" },
-          ].map((f, i) => (
-            <div key={i} className={`p-6 bg-white hover:bg-zinc-50 transition-colors ${i < 2 ? 'sm:border-r border-b sm:border-b-0 border-black/10' : ''}`}>
-              <div className="w-9 h-9 bg-zinc-100 rounded-sm flex items-center justify-center text-zinc-700 mb-3">{f.icon}</div>
-              <h3 className="text-zinc-950 font-semibold text-sm mb-1" style={{ fontFamily: "'Outfit', sans-serif" }}>{f.title}</h3>
-              <p className="text-zinc-500 text-xs leading-relaxed">{f.desc}</p>
-            </div>
-          ))}
-        </motion.div>
-      </main>
-    </div>
-  );
 };
 
 // Dashboard
 const Dashboard = () => {
-  const { user, token, logout } = useAuth();
+  const { user, token, logout, isDark } = useAuth();
+  const d = isDark;
   const navigate = useNavigate();
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -284,27 +245,28 @@ const Dashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-50" style={{ fontFamily: "'IBM Plex Sans', sans-serif" }}>
-      <header className="bg-white border-b border-black/10 sticky top-0 z-50 shadow-sm">
+    <div className={`min-h-screen ${d?'bg-zinc-950':'bg-zinc-50'}`} style={{ fontFamily: "'IBM Plex Sans', sans-serif" }}>
+      <header className={`sticky top-0 z-50 shadow-sm border-b ${d?'bg-zinc-900 border-zinc-800':'bg-white border-black/10'}`}>
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 bg-zinc-950 rounded-sm flex items-center justify-center">
-              <MicrophoneStage className="w-4 h-4 text-white" weight="fill" />
+            <div className={`w-8 h-8 rounded-sm flex items-center justify-center ${d?'bg-white':'bg-zinc-950'}`}>
+              <MicrophoneStage className={`w-4 h-4 ${d?'text-zinc-950':'text-white'}`} weight="fill" />
             </div>
-            <span className="text-lg font-semibold text-zinc-950" style={{ fontFamily: "'Outfit', sans-serif" }}>KhmerDub</span>
+            <span className={`text-lg font-semibold ${d?'text-white':'text-zinc-950'}`} style={{ fontFamily: "'Outfit', sans-serif" }}>KhmerDub</span>
           </div>
           <div className="flex items-center gap-4">
-            <span className="text-sm text-zinc-500">{user?.name}</span>
-            <button onClick={logout} className="text-zinc-400 hover:text-zinc-950 transition-colors"><SignOut className="w-5 h-5" /></button>
+            <ThemeToggle />
+            <span className={`text-sm ${d?'text-zinc-400':'text-zinc-500'}`}>{user?.name}</span>
+            <button onClick={logout} className={`transition-colors ${d?'text-zinc-500 hover:text-white':'text-zinc-400 hover:text-zinc-950'}`}><SignOut className="w-5 h-5" /></button>
           </div>
         </div>
       </header>
 
       <main className="max-w-6xl mx-auto px-6 py-10">
         <div className="flex items-center justify-between mb-8">
-          <h1 className="text-2xl font-semibold text-zinc-950" style={{ fontFamily: "'Outfit', sans-serif" }}>Your Projects</h1>
+          <h1 className={`text-2xl font-semibold ${d?'text-white':'text-zinc-950'}`} style={{ fontFamily: "'Outfit', sans-serif" }}>Your Projects</h1>
           <button onClick={createProject} data-testid="new-project-btn"
-            className="px-5 py-2.5 bg-zinc-950 text-zinc-950 text-sm font-semibold rounded-sm hover:bg-zinc-800 transition-colors flex items-center gap-2">
+            className={`px-5 py-2.5 text-sm font-semibold rounded-sm transition-colors flex items-center gap-2 ${d?'bg-white text-zinc-950 hover:bg-zinc-200':'bg-zinc-950 text-white hover:bg-zinc-800'}`}>
             <Plus className="w-4 h-4" weight="bold" /> New Project
           </button>
         </div>
@@ -312,25 +274,25 @@ const Dashboard = () => {
         {loading ? (
           <div className="flex justify-center py-20"><Spinner className="w-10 h-10 text-zinc-400 animate-spin" /></div>
         ) : projects.length === 0 ? (
-          <div onClick={createProject} className="border-2 border-dashed border-zinc-200 rounded-sm p-20 text-center cursor-pointer hover:border-zinc-400 transition-colors group">
-            <VideoCamera className="w-14 h-14 text-zinc-300 mx-auto mb-4 group-hover:text-zinc-500 transition-colors" weight="duotone" />
-            <p className="text-zinc-400 text-sm">Create your first dubbing project</p>
+          <div onClick={createProject} className={`border-2 border-dashed rounded-sm p-20 text-center cursor-pointer transition-colors group ${d?'border-zinc-700 hover:border-zinc-500':'border-zinc-200 hover:border-zinc-400'}`}>
+            <VideoCamera className={`w-14 h-14 mx-auto mb-4 transition-colors ${d?'text-zinc-600 group-hover:text-zinc-400':'text-zinc-300 group-hover:text-zinc-500'}`} weight="duotone" />
+            <p className={`text-sm ${d?'text-zinc-500':'text-zinc-400'}`}>Create your first dubbing project</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {projects.map((p) => (
               <motion.div key={p.project_id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
                 onClick={() => navigate(`/editor/${p.project_id}`)}
-                className="group bg-white border border-black/10 rounded-sm p-5 cursor-pointer hover:border-zinc-400 hover:shadow-md transition-all">
+                className={`group rounded-sm p-5 cursor-pointer transition-all border ${d?'bg-zinc-900 border-zinc-800 hover:border-zinc-600 hover:shadow-lg hover:shadow-black/20':'bg-white border-black/10 hover:border-zinc-400 hover:shadow-md'}`}>
                 <div className="flex items-start justify-between mb-3">
-                  <h3 className="text-zinc-950 font-semibold text-sm flex-1 mr-2" style={{ fontFamily: "'Outfit', sans-serif" }}>{p.title}</h3>
+                  <h3 className={`font-semibold text-sm flex-1 mr-2 ${d?'text-white':'text-zinc-950'}`} style={{ fontFamily: "'Outfit', sans-serif" }}>{p.title}</h3>
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
                     <button onClick={(e) => renameProject(e, p.project_id)} data-testid={`rename-project-${p.project_id}`}
-                      className="text-zinc-400 hover:text-zinc-950 p-0.5" title="Rename">
+                      className={`p-0.5 ${d?'text-zinc-500 hover:text-white':'text-zinc-400 hover:text-zinc-950'}`} title="Rename">
                       <PencilSimple className="w-3.5 h-3.5" />
                     </button>
                     <button onClick={(e) => duplicateProject(e, p.project_id)} data-testid={`duplicate-project-${p.project_id}`}
-                      className="text-zinc-400 hover:text-zinc-950 p-0.5" title="Duplicate">
+                      className={`p-0.5 ${d?'text-zinc-500 hover:text-white':'text-zinc-400 hover:text-zinc-950'}`} title="Duplicate">
                       <CopySimple className="w-3.5 h-3.5" />
                     </button>
                     <button onClick={(e) => deleteProject(e, p.project_id)} data-testid={`delete-project-${p.project_id}`}
@@ -351,7 +313,7 @@ const Dashboard = () => {
                     </span>
                   )}
                 </div>
-                <div className="flex items-center justify-between text-[10px] text-zinc-400 font-medium">
+                <div className={`flex items-center justify-between text-[10px] font-medium ${d?'text-zinc-500':'text-zinc-400'}`}>
                   <span className="flex items-center gap-1">
                     <Calendar className="w-3 h-3" /> {formatDate(p.created_at)}
                   </span>
@@ -376,7 +338,9 @@ const Dashboard = () => {
 };
 
 // Step Progress Component
-const StepProgress = ({ currentStep, steps }) => (
+const StepProgress = ({ currentStep, steps, isDark }) => {
+  const d = isDark;
+  return (
   <div className="flex items-center gap-1" data-testid="step-progress">
     {steps.map((step, i) => {
       const isActive = i === currentStep;
@@ -384,43 +348,48 @@ const StepProgress = ({ currentStep, steps }) => (
       return (
         <div key={i} className="flex items-center gap-1">
           <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-sm text-[10px] font-bold uppercase tracking-wider transition-all ${
-            isDone ? 'bg-emerald-50 text-emerald-700' : isActive ? 'bg-zinc-950 text-white' : 'bg-zinc-100 text-zinc-400'
+            isDone ? 'bg-emerald-50 text-emerald-700' : isActive ? (d?'bg-white text-zinc-950':'bg-zinc-950 text-white') : (d?'bg-zinc-800 text-zinc-500':'bg-zinc-100 text-zinc-400')
           }`}>
             {isDone ? <CheckCircle className="w-3.5 h-3.5" weight="fill" /> : <span className="w-3.5 h-3.5 flex items-center justify-center text-[10px]">{i + 1}</span>}
             <span className="hidden sm:inline">{step}</span>
           </div>
-          {i < steps.length - 1 && <CaretRight className="w-3 h-3 text-zinc-300" />}
+          {i < steps.length - 1 && <CaretRight className={`w-3 h-3 ${d?'text-zinc-600':'text-zinc-300'}`} />}
         </div>
       );
     })}
   </div>
-);
+  );
+};
 
 // Processing Overlay
-const ProcessingOverlay = ({ message }) => (
+const ProcessingOverlay = ({ message, isDark }) => {
+  const d = isDark;
+  return (
   <AnimatePresence>
     {message && (
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 bg-white/80 backdrop-blur-sm flex items-center justify-center">
-        <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="bg-white border border-black/10 rounded-sm p-8 text-center max-w-sm shadow-xl">
+        className={`fixed inset-0 z-50 backdrop-blur-sm flex items-center justify-center ${d?'bg-zinc-950/80':'bg-white/80'}`}>
+        <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className={`border rounded-sm p-8 text-center max-w-sm shadow-xl ${d?'bg-zinc-900 border-zinc-700':'bg-white border-black/10'}`}>
           <div className="relative w-16 h-16 mx-auto mb-5">
-            <div className="absolute inset-0 rounded-sm border-2 border-zinc-200" />
+            <div className={`absolute inset-0 rounded-sm border-2 ${d?'border-zinc-700':'border-zinc-200'}`} />
             <div className="absolute inset-0 rounded-sm border-2 border-transparent border-t-cyan-400 animate-spin" />
             <div className="absolute inset-2 rounded-sm bg-cyan-500/5 flex items-center justify-center">
-              <Waveform className="w-6 h-6 text-zinc-700" />
+              <Waveform className={`w-6 h-6 ${d?'text-zinc-300':'text-zinc-700'}`} />
             </div>
           </div>
-          <p className="text-zinc-950 font-medium text-sm mb-1">Processing</p>
+          <p className={`font-medium text-sm mb-1 ${d?'text-white':'text-zinc-950'}`}>Processing</p>
           <p className="text-zinc-500 text-xs">{message}</p>
         </motion.div>
       </motion.div>
     )}
   </AnimatePresence>
-);
+  );
+};
 
 // Editor
 const Editor = () => {
-  const { token } = useAuth();
+  const { token, isDark } = useAuth();
+  const d = isDark;
   const navigate = useNavigate();
   const { projectId } = useProjectId();
   const [project, setProject] = useState(null);
@@ -832,49 +801,50 @@ const Editor = () => {
     return speakerColors[idx >= 0 ? idx % speakerColors.length : 0];
   };
 
-  if (loading) return <div className="min-h-screen bg-zinc-50 flex items-center justify-center"><Spinner className="w-12 h-12 text-zinc-400 animate-spin" /></div>;
+  if (loading) return <div className={`min-h-screen flex items-center justify-center ${d?'bg-zinc-950':'bg-zinc-50'}`}><Spinner className="w-12 h-12 text-zinc-400 animate-spin" /></div>;
 
   const step = getCurrentStep();
 
   return (
-    <div className="min-h-screen bg-zinc-50 flex flex-col" data-testid="editor-page" style={{ fontFamily: "'IBM Plex Sans', sans-serif" }}>
-      <ProcessingOverlay message={processingMsg} />
+    <div className={`min-h-screen flex flex-col ${d?'bg-zinc-950':'bg-zinc-50'}`} data-testid="editor-page" style={{ fontFamily: "'IBM Plex Sans', sans-serif" }}>
+      <ProcessingOverlay message={processingMsg} isDark={d} />
 
       {/* Header */}
-      <header className="bg-white border-b border-black/10 px-4 py-2.5 flex items-center justify-between shadow-sm">
+      <header className={`px-4 py-2.5 flex items-center justify-between shadow-sm border-b ${d?'bg-zinc-900 border-zinc-800':'bg-white border-black/10'}`}>
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate("/dashboard")} className="text-zinc-400 hover:text-zinc-950 transition-colors p-1" data-testid="back-btn">
+          <button onClick={() => navigate("/dashboard")} className={`transition-colors p-1 ${d?'text-zinc-500 hover:text-white':'text-zinc-400 hover:text-zinc-950'}`} data-testid="back-btn">
             <ArrowLeft className="w-5 h-5" />
           </button>
           {editingTitle ? (
             <input type="text" value={titleInput} onChange={(e) => setTitleInput(e.target.value)}
               onBlur={saveTitle} onKeyDown={(e) => e.key === 'Enter' && saveTitle()}
               autoFocus data-testid="title-input"
-              className="bg-zinc-50 text-zinc-950 font-semibold text-sm px-2 py-1 rounded-sm border border-zinc-300 outline-none focus:border-zinc-950" style={{ fontFamily: "'Outfit', sans-serif" }} />
+              className={`font-semibold text-sm px-2 py-1 rounded-sm border outline-none ${d?'bg-zinc-800 text-white border-zinc-600 focus:border-zinc-400':'bg-zinc-50 text-zinc-950 border-zinc-300 focus:border-zinc-950'}`} style={{ fontFamily: "'Outfit', sans-serif" }} />
           ) : (
-            <span className="text-zinc-950 font-semibold text-sm cursor-pointer hover:text-zinc-600 transition-colors flex items-center gap-1"
+            <span className={`font-semibold text-sm cursor-pointer transition-colors flex items-center gap-1 ${d?'text-white hover:text-zinc-300':'text-zinc-950 hover:text-zinc-600'}`}
               onClick={() => { setEditingTitle(true); setTitleInput(project?.title || ""); }}
               data-testid="project-title" style={{ fontFamily: "'Outfit', sans-serif" }}>
-              {project?.title} <PencilSimple className="w-3 h-3 text-zinc-400" />
+              {project?.title} <PencilSimple className={`w-3 h-3 ${d?'text-zinc-500':'text-zinc-400'}`} />
             </span>
           )}
           {project?.detected_language && (
-            <span className="text-[10px] text-zinc-600 bg-zinc-100 px-2 py-0.5 rounded-sm flex items-center gap-1 font-bold uppercase tracking-wider" data-testid="detected-language">
+            <span className={`text-[10px] px-2 py-0.5 rounded-sm flex items-center gap-1 font-bold uppercase tracking-wider ${d?'text-zinc-400 bg-zinc-800 border border-zinc-700':'text-zinc-600 bg-zinc-100'}`} data-testid="detected-language">
               <Globe className="w-3 h-3" /> {project.detected_language?.toUpperCase()}
             </span>
           )}
           <span data-testid="save-status" className={`text-[10px] font-medium flex items-center gap-1 ${
-            saveStatus === 'saving' ? 'text-amber-600' : saveStatus === 'error' ? 'text-red-600' : 'text-zinc-400'
+            saveStatus === 'saving' ? 'text-amber-600' : saveStatus === 'error' ? 'text-red-600' : (d?'text-zinc-500':'text-zinc-400')
           }`}>
             <FloppyDisk className="w-3 h-3" />
             {saveStatus === 'saving' ? 'Saving...' : saveStatus === 'error' ? 'Save error' : 'Saved'}
           </span>
         </div>
         <div className="flex items-center gap-2">
-          <StepProgress currentStep={step} steps={["Upload", "Detect", "Translate", "Audio", "Video"]} />
+          <StepProgress currentStep={step} steps={["Upload", "Detect", "Translate", "Audio", "Video"]} isDark={d} />
+          <ThemeToggle />
           {(audioUrl || videoUrl) && (
             <button onClick={createShareLink} data-testid="share-btn"
-              className="ml-2 px-3 py-1.5 text-[11px] font-bold rounded-sm flex items-center gap-1.5 bg-zinc-100 border border-black/10 text-zinc-700 hover:text-zinc-950 hover:border-zinc-400 transition-all">
+              className={`ml-2 px-3 py-1.5 text-[11px] font-bold rounded-sm flex items-center gap-1.5 border transition-all ${d?'bg-zinc-800 border-zinc-700 text-zinc-300 hover:text-white hover:border-zinc-500':'bg-zinc-100 border-black/10 text-zinc-700 hover:text-zinc-950 hover:border-zinc-400'}`}>
               <ShareNetwork className="w-3.5 h-3.5" /> Share
             </button>
           )}
@@ -888,20 +858,20 @@ const Editor = () => {
             className="fixed inset-0 z-50 bg-black/20 backdrop-blur-sm flex items-center justify-center"
             onClick={() => setShowShareModal(false)}>
             <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} exit={{ scale: 0.9 }}
-              className="bg-white border border-black/10 rounded-sm p-6 max-w-md w-full mx-4 shadow-xl"
+              className={`border rounded-sm p-6 max-w-md w-full mx-4 shadow-xl ${d?'bg-zinc-900 border-zinc-700':'bg-white border-black/10'}`}
               onClick={(e) => e.stopPropagation()}>
               <div className="flex items-center gap-2 mb-4">
-                <ShareNetwork className="w-5 h-5 text-zinc-950" />
-                <h3 className="text-zinc-950 font-semibold" style={{ fontFamily: "'Outfit', sans-serif" }}>Share Project</h3>
+                <ShareNetwork className={`w-5 h-5 ${d?'text-white':'text-zinc-950'}`} />
+                <h3 className={`font-semibold ${d?'text-white':'text-zinc-950'}`} style={{ fontFamily: "'Outfit', sans-serif" }}>Share Project</h3>
               </div>
               <p className="text-zinc-500 text-xs mb-4">Anyone with this link can view and download the dubbed video.</p>
-              <div className="flex items-center gap-2 bg-zinc-50 border border-black/10 rounded-sm p-2">
+              <div className={`flex items-center gap-2 border rounded-sm p-2 ${d?'bg-zinc-800 border-zinc-700':'bg-zinc-50 border-black/10'}`}>
                 <Link className="w-4 h-4 text-zinc-400 flex-shrink-0" />
                 <input type="text" readOnly value={`${window.location.origin}/shared/${shareToken}`}
-                  className="flex-1 bg-transparent text-zinc-950 text-xs outline-none font-mono" />
+                  className={`flex-1 bg-transparent text-xs outline-none font-mono ${d?'text-zinc-200':'text-zinc-950'}`} />
                 <button onClick={copyShareLink} data-testid="copy-share-link"
                   className={`px-3 py-1.5 rounded-sm text-[11px] font-bold transition-all flex items-center gap-1 ${
-                    shareCopied ? 'bg-emerald-50 text-emerald-700' : 'bg-zinc-950 text-white hover:bg-zinc-800'
+                    shareCopied ? 'bg-emerald-50 text-emerald-700' : (d?'bg-white text-zinc-950 hover:bg-zinc-200':'bg-zinc-950 text-white hover:bg-zinc-800')
                   }`}>
                   {shareCopied ? <><CheckCircle className="w-3 h-3" weight="fill" /> Copied</> : <><Copy className="w-3 h-3" /> Copy</>}
                 </button>
@@ -910,7 +880,7 @@ const Editor = () => {
                 <button onClick={removeShareLink} className="text-red-500 text-[11px] hover:text-red-700 transition-colors font-medium">
                   Remove link
                 </button>
-                <button onClick={() => setShowShareModal(false)} className="px-4 py-1.5 bg-zinc-100 text-zinc-950 text-[11px] font-bold rounded-sm hover:bg-zinc-200 transition-colors">
+                <button onClick={() => setShowShareModal(false)} className={`px-4 py-1.5 text-[11px] font-bold rounded-sm transition-colors ${d?'bg-zinc-800 text-white hover:bg-zinc-700':'bg-zinc-100 text-zinc-950 hover:bg-zinc-200'}`}>
                   Done
                 </button>
               </div>
@@ -921,20 +891,20 @@ const Editor = () => {
 
       <div className="flex-1 flex overflow-hidden">
         {/* Left Sidebar */}
-        <div className="w-72 min-w-[288px] bg-white border-r border-black/10 flex flex-col overflow-y-auto">
+        <div className={`w-72 min-w-[288px] border-r flex flex-col overflow-y-auto ${d?'bg-zinc-900 border-zinc-800':'bg-white border-black/10'}`}>
           <div className="p-4 space-y-3 flex-1">
             {/* Upload */}
             <div>
-              <label className="text-[10px] text-zinc-500 uppercase font-semibold tracking-wider mb-1.5 block">Upload</label>
+              <label className={`text-[10px] uppercase font-semibold tracking-wider mb-1.5 block ${d?'text-zinc-500':'text-zinc-500'}`}>Upload</label>
               <input ref={fileInputRef} type="file" accept="video/*,audio/*" onChange={handleUpload} className="hidden" />
               {project?.original_filename ? (
-                <div className="bg-zinc-50 border border-black/10 rounded-sm p-3">
-                  <p className="text-zinc-950 text-xs truncate font-medium">{project.original_filename}</p>
-                  <p className="text-zinc-400 text-[10px] mt-0.5 uppercase">{project.file_type}</p>
+                <div className={`border rounded-sm p-3 ${d?'bg-zinc-800 border-zinc-700':'bg-zinc-50 border-black/10'}`}>
+                  <p className={`text-xs truncate font-medium ${d?'text-white':'text-zinc-950'}`}>{project.original_filename}</p>
+                  <p className={`text-[10px] mt-0.5 uppercase ${d?'text-zinc-500':'text-zinc-400'}`}>{project.file_type}</p>
                 </div>
               ) : (
                 <button onClick={() => fileInputRef.current?.click()} disabled={!!processingMsg} data-testid="upload-btn"
-                  className="w-full py-4 border border-dashed border-black/10 rounded-sm text-zinc-500 text-xs hover:border-zinc-400 hover:text-zinc-700 transition-all">
+                  className={`w-full py-4 border border-dashed rounded-sm text-xs transition-all ${d?'border-zinc-700 text-zinc-500 hover:border-zinc-500 hover:text-zinc-300':'border-black/10 text-zinc-500 hover:border-zinc-400 hover:text-zinc-700'}`}>
                   <Upload className="w-5 h-5 mx-auto mb-1" /> Click to upload video
                 </button>
               )}
@@ -960,14 +930,14 @@ const Editor = () => {
             {/* Action buttons */}
             {project?.original_file_path && (
               <button onClick={transcribe} disabled={!!processingMsg} data-testid="transcribe-btn"
-                className="w-full py-2.5 bg-zinc-100 border border-black/10 text-zinc-950 text-xs font-medium rounded-sm hover:bg-zinc-100 transition-all disabled:opacity-40">
+                className={`w-full py-2.5 border text-xs font-medium rounded-sm transition-all disabled:opacity-40 ${d?'bg-zinc-800 border-zinc-700 text-white hover:bg-zinc-700':'bg-zinc-100 border-black/10 text-zinc-950 hover:bg-zinc-100'}`}>
                 Detect Speakers & Text
               </button>
             )}
 
             {segments.length > 0 && (
               <button onClick={translate} disabled={!!processingMsg} data-testid="translate-btn"
-                className="w-full py-2.5 bg-zinc-950/5 border border-zinc-950/15 text-zinc-700 text-xs font-semibold rounded-sm hover:bg-zinc-100 transition-all disabled:opacity-40">
+                className={`w-full py-2.5 border text-xs font-semibold rounded-sm transition-all disabled:opacity-40 ${d?'bg-zinc-800 border-zinc-700 text-zinc-200 hover:bg-zinc-700':'bg-zinc-950/5 border-zinc-950/15 text-zinc-700 hover:bg-zinc-100'}`}>
                 Translate to Khmer
               </button>
             )}
@@ -975,8 +945,8 @@ const Editor = () => {
             {segments.some(s => s.translated || s.custom_audio) && (
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-[10px] text-zinc-500 uppercase font-semibold tracking-wider">Speed</label>
-                  <span className="text-zinc-700 text-xs font-bold">{ttsSpeed >= 0 ? '+' : ''}{ttsSpeed}%</span>
+                  <label className={`text-[10px] uppercase font-semibold tracking-wider ${d?'text-zinc-500':'text-zinc-500'}`}>Speed</label>
+                  <span className={`text-xs font-bold ${d?'text-zinc-300':'text-zinc-700'}`}>{ttsSpeed >= 0 ? '+' : ''}{ttsSpeed}%</span>
                 </div>
                 <input type="range" min={-10} max={15} value={ttsSpeed} onChange={(e) => setTtsSpeed(Number(e.target.value))}
                   data-testid="tts-speed-slider"
@@ -1011,7 +981,7 @@ const Editor = () => {
 
           {/* Preview & Download */}
           {(audioUrl || videoUrl) && (
-            <div className="border-t border-black/10 p-4 space-y-3">
+            <div className={`border-t p-4 space-y-3 ${d?'border-zinc-800':'border-black/10'}`}>
               <div className="flex items-center justify-between">
                 <label className="text-[10px] text-zinc-500 uppercase font-semibold tracking-wider block">Output</label>
                 {videoUrl && originalVideoUrl && (
@@ -1079,7 +1049,7 @@ const Editor = () => {
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Actors Panel */}
           {actors.length > 0 && (
-            <div className="bg-white/50 border-b border-black/10 p-4">
+            <div className={`border-b p-4 ${d?'bg-zinc-900/50 border-zinc-800':'bg-white/50 border-black/10'}`}>
               {/* Auto-calculated speaking time summary */}
               <div className="flex items-center gap-4 mb-3 flex-wrap">
                 <h3 className="text-[10px] text-zinc-500 uppercase font-semibold tracking-wider flex items-center gap-1.5">
@@ -1096,14 +1066,14 @@ const Editor = () => {
                     }`}>
                       {isMale ? <GenderMale className="w-3 h-3" weight="bold" /> : <GenderFemale className="w-3 h-3" weight="bold" />}
                       {actor.label}:
-                      <span className="text-zinc-950 font-bold ml-0.5">
+                      <span className={`font-bold ml-0.5 ${d?'text-white':'text-zinc-950'}`}>
                         {mins > 0 ? `${mins}m ${secs}s` : `${secs}s`}
                       </span>
                     </div>
                   );
                 })}
                 <div className="ml-auto text-[10px] text-zinc-500">
-                  Total: <span className="text-zinc-950 font-semibold">
+                  Total: <span className={`font-semibold ${d?'text-white':'text-zinc-950'}`}>
                     {(() => {
                       const t = segments.reduce((sum, s) => sum + ((s.end || 0) - (s.start || 0)), 0);
                       const m = Math.floor(t / 60); const s = Math.round(t % 60);
@@ -1139,7 +1109,7 @@ const Editor = () => {
                           }
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-zinc-950 font-semibold text-xs truncate">{actor.label || actor.id}</p>
+                          <p className={`font-semibold text-xs truncate ${d?'text-white':'text-zinc-950'}`}>{actor.label || actor.id}</p>
                           <div className="flex items-center gap-1.5 mt-0.5">
                             <select data-testid={`actor-gender-${actor.id}`} value={actor.gender || 'female'}
                               onChange={(e) => updateActor(actor.id, 'gender', e.target.value)}
@@ -1298,12 +1268,12 @@ const Editor = () => {
 
           {/* Search & Tools Bar */}
           {segments.length > 0 && (
-            <div className="bg-white/50 border-b border-black/10 px-4 py-2 flex items-center gap-3">
+            <div className={`border-b px-4 py-2 flex items-center gap-3 ${d?'bg-zinc-900/50 border-zinc-800':'bg-white/50 border-black/10'}`}>
               <div className="relative flex-1 max-w-xs">
                 <MagnifyingGlass className="w-3.5 h-3.5 text-zinc-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
                 <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search segments..." data-testid="search-segments"
-                  className="w-full bg-zinc-50 border border-black/10 rounded-sm pl-8 pr-3 py-1.5 text-xs text-zinc-950 placeholder-zinc-400 outline-none focus:border-zinc-400" />
+                  className={`w-full border rounded-sm pl-8 pr-3 py-1.5 text-xs placeholder-zinc-400 outline-none ${d?'bg-zinc-800 border-zinc-700 text-white focus:border-zinc-500':'bg-zinc-50 border-black/10 text-zinc-950 focus:border-zinc-400'}`} />
               </div>
               {selectedSegments.size >= 2 && (
                 <button onClick={mergeSelected} data-testid="merge-segments-btn"
@@ -1326,8 +1296,8 @@ const Editor = () => {
           {/* Subtitle Table */}
           <div className="flex-1 overflow-auto">
             <table className="w-full text-xs" data-testid="subtitle-table">
-              <thead className="bg-white sticky top-0 z-10">
-                <tr className="text-zinc-400 text-[10px] uppercase tracking-wider">
+              <thead className={`sticky top-0 z-10 ${d?'bg-zinc-900':'bg-white'}`}>
+                <tr className={`text-[10px] uppercase tracking-wider ${d?'text-zinc-500':'text-zinc-400'}`}>
                   <th className="px-1 py-2.5 text-center w-7"></th>
                   <th className="px-2 py-2.5 text-left w-7"></th>
                   <th className="px-2 py-2.5 text-left w-8">#</th>
@@ -1346,7 +1316,7 @@ const Editor = () => {
                 {segments.length === 0 ? (
                   <tr>
                     <td colSpan={12} className="text-center py-24 text-zinc-400">
-                      <VideoCamera className="w-10 h-10 mx-auto mb-3 text-zinc-300" weight="duotone" />
+                      <VideoCamera className={`w-10 h-10 mx-auto mb-3 ${d?'text-zinc-600':'text-zinc-300'}`} weight="duotone" />
                       <p className="text-sm">Upload a video and detect speakers to get started</p>
                     </td>
                   </tr>
@@ -1360,7 +1330,7 @@ const Editor = () => {
                     const rowColors = ['border-l-cyan-500/40', 'border-l-pink-500/40', 'border-l-amber-500/40', 'border-l-emerald-500/40', 'border-l-purple-500/40', 'border-l-rose-500/40'];
                     const rowColor = rowColors[speakerIdx >= 0 ? speakerIdx % rowColors.length : 0];
                     return (
-                      <tr key={idx} className={`border-b border-black/5 hover:bg-white transition-colors border-l-2 ${rowColor} ${isSelected ? 'bg-cyan-500/5' : ''}`}
+                      <tr key={idx} className={`border-b transition-colors border-l-2 ${rowColor} ${isSelected ? 'bg-cyan-500/5' : ''} ${d?'border-b-zinc-800 hover:bg-zinc-800/50':'border-b-black/5 hover:bg-white'}`}
                         data-testid={`segment-row-${idx}`}>
                         <td className="px-1 py-2">
                           <input type="checkbox" checked={isSelected} onChange={() => toggleSelect(idx)}
@@ -1388,11 +1358,11 @@ const Editor = () => {
                         </td>
                         <td className="px-3 py-2.5">
                           <input type="text" value={seg.original || ""} onChange={(e) => updateSegment(idx, "original", e.target.value)}
-                            className="w-full bg-transparent text-zinc-950 border-b border-transparent hover:border-black/10 focus:border-zinc-400 outline-none py-0.5 text-xs" />
+                            className={`w-full bg-transparent border-b border-transparent hover:border-black/10 focus:border-zinc-400 outline-none py-0.5 text-xs ${d?'text-zinc-200':'text-zinc-950'}`} />
                         </td>
                         <td className="px-3 py-2.5">
                           <input type="text" value={seg.translated || ""} onChange={(e) => updateSegment(idx, "translated", e.target.value)}
-                            className="w-full bg-transparent text-zinc-700/90 border-b border-transparent hover:border-black/10 focus:border-zinc-400 outline-none py-0.5 text-xs" />
+                            className={`w-full bg-transparent border-b border-transparent hover:border-black/10 focus:border-zinc-400 outline-none py-0.5 text-xs ${d?'text-zinc-300':'text-zinc-700/90'}`} />
                         </td>
                         <td className="px-3 py-2.5">
                           <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-sm text-[10px] font-semibold ${
@@ -1488,8 +1458,8 @@ const Editor = () => {
 
       {/* Bottom Audio Player */}
       {audioUrl && (
-        <div className="bg-white border-t border-black/10 px-4 py-2 flex items-center gap-3">
-          <SpeakerHigh className="w-4 h-4 text-zinc-700 flex-shrink-0" />
+        <div className={`border-t px-4 py-2 flex items-center gap-3 ${d?'bg-zinc-900 border-zinc-800':'bg-white border-black/10'}`}>
+          <SpeakerHigh className={`w-4 h-4 flex-shrink-0 ${d?'text-zinc-300':'text-zinc-700'}`} />
           <audio ref={audioRef} src={audioUrl} controls className="flex-1 h-7 opacity-80" />
         </div>
       )}
@@ -1499,6 +1469,8 @@ const Editor = () => {
 
 // Shared Project Page (Public - no auth needed)
 const SharedProject = () => {
+  const { isDark } = useAuth();
+  const d = isDark;
   const location = useLocation();
   const shareToken = location.pathname.split('/shared/')[1];
   const [project, setProject] = useState(null);
@@ -1516,14 +1488,14 @@ const SharedProject = () => {
     if (shareToken) fetchShared();
   }, [shareToken]);
 
-  if (loading) return <div className="min-h-screen bg-zinc-50 flex items-center justify-center"><Spinner className="w-12 h-12 text-zinc-700 animate-spin" /></div>;
+  if (loading) return <div className={`min-h-screen flex items-center justify-center ${d?'bg-zinc-950':'bg-zinc-50'}`}><Spinner className="w-12 h-12 text-zinc-700 animate-spin" /></div>;
   if (error) return (
-    <div className="min-h-screen bg-zinc-50 flex items-center justify-center text-center px-6">
+    <div className={`min-h-screen flex items-center justify-center text-center px-6 ${d?'bg-zinc-950':'bg-zinc-50'}`}>
       <div>
-        <VideoCamera className="w-16 h-16 text-zinc-300 mx-auto mb-4" weight="duotone" />
-        <h2 className="text-zinc-950 text-xl font-bold mb-2">Not Found</h2>
+        <VideoCamera className={`w-16 h-16 mx-auto mb-4 ${d?'text-zinc-600':'text-zinc-300'}`} weight="duotone" />
+        <h2 className={`text-xl font-bold mb-2 ${d?'text-white':'text-zinc-950'}`}>Not Found</h2>
         <p className="text-zinc-500 text-sm mb-6">{error}</p>
-        <a href="/" className="px-5 py-2.5 bg-cyan-500 text-zinc-950 text-sm font-semibold rounded-sm hover:bg-cyan-400 transition-colors">
+        <a href="/" className={`px-5 py-2.5 text-sm font-semibold rounded-sm transition-colors ${d?'bg-white text-zinc-950 hover:bg-zinc-200':'bg-cyan-500 text-zinc-950 hover:bg-cyan-400'}`}>
           Go to KhmerDub
         </a>
       </div>
@@ -1533,24 +1505,27 @@ const SharedProject = () => {
   const LANG_NAMES = { zh: "Chinese", th: "Thai", vi: "Vietnamese", ko: "Korean", ja: "Japanese", en: "English" };
 
   return (
-    <div className="min-h-screen bg-zinc-50" data-testid="shared-project-page">
-      <header className="bg-zinc-50/90 backdrop-blur-sm border-b border-black/10">
+    <div className={`min-h-screen ${d?'bg-zinc-950':'bg-zinc-50'}`} data-testid="shared-project-page">
+      <header className={`backdrop-blur-sm border-b ${d?'bg-zinc-950/90 border-zinc-800':'bg-zinc-50/90 border-black/10'}`}>
         <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-zinc-950/5 border border-zinc-950/15 rounded-sm flex items-center justify-center">
-              <MicrophoneStage className="w-5 h-5 text-zinc-700" weight="fill" />
+            <div className={`w-9 h-9 border rounded-sm flex items-center justify-center ${d?'bg-zinc-800 border-zinc-700':'bg-zinc-950/5 border-zinc-950/15'}`}>
+              <MicrophoneStage className={`w-5 h-5 ${d?'text-white':'text-zinc-700'}`} weight="fill" />
             </div>
-            <span className="text-lg font-semibold text-zinc-950">KhmerDub</span>
+            <span className={`text-lg font-semibold ${d?'text-white':'text-zinc-950'}`}>KhmerDub</span>
           </div>
-          <a href="/" className="px-4 py-2 bg-zinc-100 text-zinc-950 text-xs font-semibold rounded-sm hover:bg-zinc-100 transition-colors">
-            Try it free
-          </a>
+          <div className="flex items-center gap-3">
+            <ThemeToggle />
+            <a href="/" className={`px-4 py-2 text-xs font-semibold rounded-sm transition-colors ${d?'bg-zinc-800 text-white hover:bg-zinc-700':'bg-zinc-100 text-zinc-950 hover:bg-zinc-200'}`}>
+              Try it free
+            </a>
+          </div>
         </div>
       </header>
 
       <main className="max-w-4xl mx-auto px-6 py-10">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-zinc-950 mb-2">{project.title}</h1>
+          <h1 className={`text-2xl font-bold mb-2 ${d?'text-white':'text-zinc-950'}`}>{project.title}</h1>
           <div className="flex items-center gap-3 text-xs text-zinc-500">
             {project.detected_language && (
               <span className="flex items-center gap-1 bg-zinc-100 px-2 py-0.5 rounded-sm">
@@ -1602,14 +1577,14 @@ const SharedProject = () => {
 
         {/* Subtitle preview table */}
         {project.segments?.length > 0 && (
-          <div className="bg-white border border-black/10 rounded-sm overflow-hidden">
-            <div className="px-4 py-3 border-b border-black/10">
-              <h3 className="text-zinc-950 font-semibold text-sm">Subtitles</h3>
+          <div className={`border rounded-sm overflow-hidden ${d?'bg-zinc-900 border-zinc-800':'bg-white border-black/10'}`}>
+            <div className={`px-4 py-3 border-b ${d?'border-zinc-800':'border-black/10'}`}>
+              <h3 className={`font-semibold text-sm ${d?'text-white':'text-zinc-950'}`}>Subtitles</h3>
             </div>
             <div className="max-h-[400px] overflow-y-auto">
               <table className="w-full text-xs">
-                <thead className="bg-white sticky top-0">
-                  <tr className="text-zinc-400 text-[10px] uppercase">
+                <thead className={`sticky top-0 ${d?'bg-zinc-900':'bg-white'}`}>
+                  <tr className={`text-[10px] uppercase ${d?'text-zinc-500':'text-zinc-400'}`}>
                     <th className="px-4 py-2 text-left w-10">#</th>
                     <th className="px-4 py-2 text-left w-20">Time</th>
                     <th className="px-4 py-2 text-left">Original</th>
@@ -1619,13 +1594,13 @@ const SharedProject = () => {
                 </thead>
                 <tbody>
                   {project.segments.map((seg, i) => (
-                    <tr key={i} className="border-b border-black/5">
-                      <td className="px-4 py-2 text-zinc-400">{i + 1}</td>
+                    <tr key={i} className={`border-b ${d?'border-zinc-800':'border-black/5'}`}>
+                      <td className={`px-4 py-2 ${d?'text-zinc-500':'text-zinc-400'}`}>{i + 1}</td>
                       <td className="px-4 py-2 text-zinc-500 font-mono text-[10px]">
                         {Math.floor((seg.start||0)/60)}:{((seg.start||0)%60).toFixed(0).padStart(2,'0')}
                       </td>
-                      <td className="px-4 py-2 text-zinc-600">{seg.original}</td>
-                      <td className="px-4 py-2 text-zinc-700">{seg.translated}</td>
+                      <td className={`px-4 py-2 ${d?'text-zinc-400':'text-zinc-600'}`}>{seg.original}</td>
+                      <td className={`px-4 py-2 ${d?'text-zinc-300':'text-zinc-700'}`}>{seg.translated}</td>
                       <td className="px-4 py-2">
                         <span className={`text-[10px] font-bold ${seg.gender === 'male' ? 'text-blue-600' : 'text-pink-600'}`}>
                           {seg.gender === 'male' ? 'Boy' : 'Girl'}
@@ -1651,8 +1626,8 @@ const useProjectId = () => {
 };
 
 const ProtectedRoute = ({ children }) => {
-  const { user, loading } = useAuth();
-  if (loading) return <div className="min-h-screen bg-zinc-50 flex items-center justify-center"><Spinner className="w-12 h-12 text-zinc-700 animate-spin" /></div>;
+  const { user, loading, isDark } = useAuth();
+  if (loading) return <div className={`min-h-screen flex items-center justify-center ${isDark?'bg-zinc-950':'bg-zinc-50'}`}><Spinner className="w-12 h-12 text-zinc-700 animate-spin" /></div>;
   if (!user) return <Navigate to="/" replace />;
   return children;
 };
