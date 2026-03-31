@@ -174,6 +174,7 @@ class ProjectUpdate(BaseModel):
 
 class TranslateRequest(BaseModel):
     chinese_text: str
+    target_language: str = "km"
 
 LANGUAGE_NAMES = {
     "zh": "Chinese", "th": "Thai", "vi": "Vietnamese", "ko": "Korean",
@@ -182,6 +183,60 @@ LANGUAGE_NAMES = {
     "de": "German", "es": "Spanish", "pt": "Portuguese", "ru": "Russian",
     "ar": "Arabic", "hi": "Hindi", "tl": "Tagalog", "it": "Italian",
 }
+
+# Edge TTS voices per output language: {lang_code: {male: [voices], female: [voices]}}
+EDGE_TTS_VOICES = {
+    "km": {"male": [{"id": "dara", "name": "Piseth (Boy)", "voice": "km-KH-PisethNeural"}],
+            "female": [{"id": "sophea", "name": "Sreymom (Girl)", "voice": "km-KH-SreymomNeural"}]},
+    "th": {"male": [{"id": "th_m1", "name": "Niwat (Boy)", "voice": "th-TH-NiwatNeural"}],
+            "female": [{"id": "th_f1", "name": "Premwadee (Girl)", "voice": "th-TH-PremwadeeNeural"}]},
+    "vi": {"male": [{"id": "vi_m1", "name": "NamMinh (Boy)", "voice": "vi-VN-NamMinhNeural"}],
+            "female": [{"id": "vi_f1", "name": "HoaiMy (Girl)", "voice": "vi-VN-HoaiMyNeural"}]},
+    "ko": {"male": [{"id": "ko_m1", "name": "InJoon (Boy)", "voice": "ko-KR-InJoonNeural"}],
+            "female": [{"id": "ko_f1", "name": "SunHi (Girl)", "voice": "ko-KR-SunHiNeural"}]},
+    "ja": {"male": [{"id": "ja_m1", "name": "Keita (Boy)", "voice": "ja-JP-KeitaNeural"}],
+            "female": [{"id": "ja_f1", "name": "Nanami (Girl)", "voice": "ja-JP-NanamiNeural"}]},
+    "en": {"male": [{"id": "en_m1", "name": "Guy (Boy)", "voice": "en-US-GuyNeural"}],
+            "female": [{"id": "en_f1", "name": "Jenny (Girl)", "voice": "en-US-JennyNeural"}]},
+    "zh": {"male": [{"id": "zh_m1", "name": "YunXi (Boy)", "voice": "zh-CN-YunxiNeural"}],
+            "female": [{"id": "zh_f1", "name": "XiaoXiao (Girl)", "voice": "zh-CN-XiaoxiaoNeural"}]},
+    "id": {"male": [{"id": "id_m1", "name": "Ardi (Boy)", "voice": "id-ID-ArdiNeural"}],
+            "female": [{"id": "id_f1", "name": "Gadis (Girl)", "voice": "id-ID-GadisNeural"}]},
+    "hi": {"male": [{"id": "hi_m1", "name": "Madhur (Boy)", "voice": "hi-IN-MadhurNeural"}],
+            "female": [{"id": "hi_f1", "name": "Swara (Girl)", "voice": "hi-IN-SwaraNeural"}]},
+    "es": {"male": [{"id": "es_m1", "name": "Alvaro (Boy)", "voice": "es-ES-AlvaroNeural"}],
+            "female": [{"id": "es_f1", "name": "Elvira (Girl)", "voice": "es-ES-ElviraNeural"}]},
+    "fr": {"male": [{"id": "fr_m1", "name": "Henri (Boy)", "voice": "fr-FR-HenriNeural"}],
+            "female": [{"id": "fr_f1", "name": "Denise (Girl)", "voice": "fr-FR-DeniseNeural"}]},
+    "tl": {"male": [{"id": "tl_m1", "name": "Angelo (Boy)", "voice": "fil-PH-AngeloNeural"}],
+            "female": [{"id": "tl_f1", "name": "Blessica (Girl)", "voice": "fil-PH-BlessicaNeural"}]},
+    "de": {"male": [{"id": "de_m1", "name": "Conrad (Boy)", "voice": "de-DE-ConradNeural"}],
+            "female": [{"id": "de_f1", "name": "Katja (Girl)", "voice": "de-DE-KatjaNeural"}]},
+    "pt": {"male": [{"id": "pt_m1", "name": "Duarte (Boy)", "voice": "pt-BR-AntonioNeural"}],
+            "female": [{"id": "pt_f1", "name": "Francisca (Girl)", "voice": "pt-BR-FranciscaNeural"}]},
+    "ru": {"male": [{"id": "ru_m1", "name": "Dmitry (Boy)", "voice": "ru-RU-DmitryNeural"}],
+            "female": [{"id": "ru_f1", "name": "Svetlana (Girl)", "voice": "ru-RU-SvetlanaNeural"}]},
+    "ar": {"male": [{"id": "ar_m1", "name": "Hamed (Boy)", "voice": "ar-SA-HamedNeural"}],
+            "female": [{"id": "ar_f1", "name": "Zariyah (Girl)", "voice": "ar-SA-ZariyahNeural"}]},
+    "it": {"male": [{"id": "it_m1", "name": "Diego (Boy)", "voice": "it-IT-DiegoNeural"}],
+            "female": [{"id": "it_f1", "name": "Elsa (Girl)", "voice": "it-IT-ElsaNeural"}]},
+    "ms": {"male": [{"id": "ms_m1", "name": "Osman (Boy)", "voice": "ms-MY-OsmanNeural"}],
+            "female": [{"id": "ms_f1", "name": "Yasmin (Girl)", "voice": "ms-MY-YasminNeural"}]},
+    "lo": {"male": [{"id": "lo_m1", "name": "Chanthavong (Boy)", "voice": "lo-LA-ChanthavongNeural"}],
+            "female": [{"id": "lo_f1", "name": "Keomany (Girl)", "voice": "lo-LA-KeomanyNeural"}]},
+    "my": {"male": [{"id": "my_m1", "name": "Thiha (Boy)", "voice": "my-MM-ThihaNeural"}],
+            "female": [{"id": "my_f1", "name": "Nilar (Girl)", "voice": "my-MM-NilarNeural"}]},
+}
+
+def get_edge_voice(lang_code, gender, voice_id=None):
+    """Get the Edge TTS voice name for a language and gender."""
+    lang_voices = EDGE_TTS_VOICES.get(lang_code, EDGE_TTS_VOICES["km"])
+    voices = lang_voices.get(gender, lang_voices.get("female", []))
+    if voice_id:
+        for v in voices:
+            if v["id"] == voice_id:
+                return v["voice"]
+    return voices[0]["voice"] if voices else "km-KH-SreymomNeural"
 
 # Auth
 async def get_current_user(authorization: str = Header(None)) -> User:
@@ -208,6 +263,21 @@ async def get_current_user(authorization: str = Header(None)) -> User:
 @api_router.get("/")
 async def root():
     return {"message": "Khmer Dubbing API"}
+
+@api_router.get("/languages")
+async def get_languages():
+    """Get all supported output languages with their voices."""
+    result = []
+    for code, name in LANGUAGE_NAMES.items():
+        voices = EDGE_TTS_VOICES.get(code)
+        if voices:
+            result.append({
+                "code": code,
+                "name": name,
+                "male_voices": voices.get("male", []),
+                "female_voices": voices.get("female", []),
+            })
+    return result
 
 # Auth endpoints
 @api_router.post("/auth/session")
@@ -762,7 +832,7 @@ Include ALL indices 0 to """ + str(len(segments)-1) + """. gender must be "male"
 
 # Translate segments
 @api_router.post("/projects/{project_id}/translate-segments")
-async def translate_segments(project_id: str, authorization: str = Header(None)):
+async def translate_segments(project_id: str, target_language: str = Query("km"), authorization: str = Header(None)):
     from emergentintegrations.llm.chat import LlmChat, UserMessage
     user = await get_current_user(authorization)
     project = await db.projects.find_one({"project_id": project_id, "user_id": user.user_id})
@@ -778,12 +848,13 @@ async def translate_segments(project_id: str, authorization: str = Header(None))
     try:
         detected_lang = project.get("detected_language", "zh")
         source_lang_name = LANGUAGE_NAMES.get(detected_lang, detected_lang)
+        target_lang_name = LANGUAGE_NAMES.get(target_language, target_language)
         
         chat = LlmChat(
             api_key=EMERGENT_LLM_KEY,
             session_id=f"translate_seg_{project_id}_{uuid.uuid4().hex[:6]}",
-            system_message=f"""You are a {source_lang_name} to Khmer translator. Translate each numbered {source_lang_name} line to Khmer.
-Return translations in exact same format: number followed by Khmer translation.
+            system_message=f"""You are a {source_lang_name} to {target_lang_name} translator. Translate each numbered {source_lang_name} line to {target_lang_name}.
+Return translations in exact same format: number followed by {target_lang_name} translation.
 Only output translations, nothing else."""
         )
         chat.with_model("openai", "gpt-5.2")
@@ -801,7 +872,12 @@ Only output translations, nothing else."""
                     pass
         await db.projects.update_one(
             {"project_id": project_id},
-            {"$set": {"segments": segments, "status": "translated", "updated_at": datetime.now(timezone.utc).isoformat()}}
+            {"$set": {
+                "segments": segments,
+                "status": "translated",
+                "target_language": target_language,
+                "updated_at": datetime.now(timezone.utc).isoformat()
+            }}
         )
         return await db.projects.find_one({"project_id": project_id}, {"_id": 0})
     except Exception as e:
@@ -823,8 +899,10 @@ class PreviewRequest(BaseModel):
 async def preview_tts(project_id: str, req: PreviewRequest, authorization: str = Header(None)):
     import edge_tts
     user = await get_current_user(authorization)
+    project = await db.projects.find_one({"project_id": project_id, "user_id": user.user_id})
+    target_lang = project.get("target_language", "km") if project else "km"
     
-    voice = "km-KH-PisethNeural" if req.gender == "male" else "km-KH-SreymomNeural"
+    voice = get_edge_voice(target_lang, req.gender)
     rate = f"+{req.speed}%" if req.speed >= 0 else f"{req.speed}%"
     
     tts_path = os.path.join(tempfile.gettempdir(), f"preview_{uuid.uuid4().hex}.mp3")
@@ -879,6 +957,7 @@ async def generate_audio_segments(project_id: str, speed: int = Query(2), author
         actors = project.get("actors", [])
         actor_voice_map = {a["id"]: a["custom_voice"] for a in actors if a.get("custom_voice")}
         actor_ai_voice_map = {a["id"]: a["voice"] for a in actors if a.get("voice")}
+        target_lang = project.get("target_language", "km")
 
         # Get original media duration for timeline alignment
         total_duration_ms = 0
@@ -933,7 +1012,7 @@ async def generate_audio_segments(project_id: str, speed: int = Query(2), author
                     seg_gender = a.get("gender", seg_gender)
                     actor_pitch = a.get("pitch", 0)
                     break
-            edge_voice = "km-KH-PisethNeural" if seg_gender == "male" else "km-KH-SreymomNeural"
+            edge_voice = get_edge_voice(target_lang, seg_gender, actor_ai_voice_map.get(speaker))
             tts_path = os.path.join(tempfile.gettempdir(), f"tts_{uuid.uuid4().hex}.mp3")
             pitched_path = os.path.join(tempfile.gettempdir(), f"tts_pitched_{uuid.uuid4().hex}.mp3")
             try:
@@ -1089,10 +1168,11 @@ async def download_file(path: str, authorization: str = Header(None), auth: str 
 async def quick_translate(request: TranslateRequest, authorization: str = Header(None)):
     from emergentintegrations.llm.chat import LlmChat, UserMessage
     user = await get_current_user(authorization)
+    target_name = LANGUAGE_NAMES.get(request.target_language, request.target_language)
     chat = LlmChat(
         api_key=EMERGENT_LLM_KEY,
         session_id=f"quick_translate_{uuid.uuid4().hex[:8]}",
-        system_message="You are a professional Chinese to Khmer translator. Only output the Khmer translation."
+        system_message=f"You are a professional translator. Translate to {target_name}. Only output the {target_name} translation."
     )
     chat.with_model("openai", "gpt-5.2")
     translated = await chat.send_message(UserMessage(text=request.chinese_text))
@@ -1246,7 +1326,7 @@ async def get_queue_status(project_id: str, authorization: str = Header(None)):
 
 # Auto-process: transcribe + translate + generate audio in one call
 @api_router.post("/projects/{project_id}/auto-process")
-async def auto_process(project_id: str, speed: int = Query(2), authorization: str = Header(None)):
+async def auto_process(project_id: str, speed: int = Query(2), target_language: str = Query("km"), authorization: str = Header(None)):
     from emergentintegrations.llm.openai import OpenAISpeechToText
     from emergentintegrations.llm.chat import LlmChat, UserMessage
     
@@ -1272,7 +1352,7 @@ async def auto_process(project_id: str, speed: int = Query(2), authorization: st
         
         # Step 2: Translate (if not done)
         if project.get("status") == "transcribed":
-            result = await translate_segments(project_id, authorization=f"Bearer {authorization.split('Bearer ')[-1] if 'Bearer ' in (authorization or '') else authorization}")
+            result = await translate_segments(project_id, target_language=target_language, authorization=f"Bearer {authorization.split('Bearer ')[-1] if 'Bearer ' in (authorization or '') else authorization}")
             project = await db.projects.find_one({"project_id": project_id}, {"_id": 0})
         
         # Step 3: Generate audio (if not done)

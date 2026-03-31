@@ -141,10 +141,10 @@ const LandingPage = () => {
             <Waveform className="w-3.5 h-3.5" /> AI-Powered Dubbing
           </div>
           <h1 className={`text-4xl sm:text-5xl lg:text-6xl font-medium mb-6 leading-[1.1] tracking-tighter ${d?'text-white':'text-zinc-950'}`} style={{fontFamily:"'Outfit',sans-serif"}}>
-            Any Language to Khmer<br /><span className={d?'text-zinc-500':'text-zinc-400'}>Video Dubbing</span>
+            Any Language to Any Language<br /><span className={d?'text-zinc-500':'text-zinc-400'}>Video Dubbing</span>
           </h1>
           <p className={`text-base max-w-xl mx-auto mb-10 leading-relaxed ${d?'text-zinc-400':'text-zinc-500'}`}>
-            Auto-detect Chinese, Thai, Korean, Vietnamese and more. Assign Boy/Girl voices, upload your own voice, and export dubbed videos.
+            Auto-detect any language. Dub to 20+ languages including Khmer, Thai, Korean, Japanese, English & more. Free TTS voices.
           </p>
           <button onClick={handleLogin} data-testid="get-started-btn"
             className={`px-8 py-3.5 font-semibold rounded-sm transition-colors text-sm ${d?'bg-white text-zinc-950 hover:bg-zinc-200':'bg-zinc-950 text-white hover:bg-zinc-800'}`}>
@@ -415,6 +415,8 @@ const Editor = () => {
   const [selectedSegments, setSelectedSegments] = useState(new Set());
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleInput, setTitleInput] = useState("");
+  const [targetLanguage, setTargetLanguage] = useState("km");
+  const [availableLanguages, setAvailableLanguages] = useState([]);
   const mediaRecorderRef = useRef(null);
   const recordedChunksRef = useRef([]);
   const recordTimerRef = useRef(null);
@@ -422,12 +424,33 @@ const Editor = () => {
   const audioRef = useRef(null);
   const originalVideoRef = useRef(null);
 
-  const femaleVoices = [
-    { id: "sophea", name: "Sreymom (Girl)" }
-  ];
-  const maleVoices = [
-    { id: "dara", name: "Piseth (Boy)" }
-  ];
+  // All supported output languages with voices
+  const OUTPUT_LANGUAGES = {
+    km: { name: "Khmer", male: [{ id: "dara", name: "Piseth (Boy)" }], female: [{ id: "sophea", name: "Sreymom (Girl)" }] },
+    th: { name: "Thai", male: [{ id: "th_m1", name: "Niwat (Boy)" }], female: [{ id: "th_f1", name: "Premwadee (Girl)" }] },
+    vi: { name: "Vietnamese", male: [{ id: "vi_m1", name: "NamMinh (Boy)" }], female: [{ id: "vi_f1", name: "HoaiMy (Girl)" }] },
+    ko: { name: "Korean", male: [{ id: "ko_m1", name: "InJoon (Boy)" }], female: [{ id: "ko_f1", name: "SunHi (Girl)" }] },
+    ja: { name: "Japanese", male: [{ id: "ja_m1", name: "Keita (Boy)" }], female: [{ id: "ja_f1", name: "Nanami (Girl)" }] },
+    en: { name: "English", male: [{ id: "en_m1", name: "Guy (Boy)" }], female: [{ id: "en_f1", name: "Jenny (Girl)" }] },
+    zh: { name: "Chinese", male: [{ id: "zh_m1", name: "YunXi (Boy)" }], female: [{ id: "zh_f1", name: "XiaoXiao (Girl)" }] },
+    id: { name: "Indonesian", male: [{ id: "id_m1", name: "Ardi (Boy)" }], female: [{ id: "id_f1", name: "Gadis (Girl)" }] },
+    hi: { name: "Hindi", male: [{ id: "hi_m1", name: "Madhur (Boy)" }], female: [{ id: "hi_f1", name: "Swara (Girl)" }] },
+    es: { name: "Spanish", male: [{ id: "es_m1", name: "Alvaro (Boy)" }], female: [{ id: "es_f1", name: "Elvira (Girl)" }] },
+    fr: { name: "French", male: [{ id: "fr_m1", name: "Henri (Boy)" }], female: [{ id: "fr_f1", name: "Denise (Girl)" }] },
+    tl: { name: "Filipino", male: [{ id: "tl_m1", name: "Angelo (Boy)" }], female: [{ id: "tl_f1", name: "Blessica (Girl)" }] },
+    de: { name: "German", male: [{ id: "de_m1", name: "Conrad (Boy)" }], female: [{ id: "de_f1", name: "Katja (Girl)" }] },
+    pt: { name: "Portuguese", male: [{ id: "pt_m1", name: "Antonio (Boy)" }], female: [{ id: "pt_f1", name: "Francisca (Girl)" }] },
+    ru: { name: "Russian", male: [{ id: "ru_m1", name: "Dmitry (Boy)" }], female: [{ id: "ru_f1", name: "Svetlana (Girl)" }] },
+    ar: { name: "Arabic", male: [{ id: "ar_m1", name: "Hamed (Boy)" }], female: [{ id: "ar_f1", name: "Zariyah (Girl)" }] },
+    it: { name: "Italian", male: [{ id: "it_m1", name: "Diego (Boy)" }], female: [{ id: "it_f1", name: "Elsa (Girl)" }] },
+    ms: { name: "Malay", male: [{ id: "ms_m1", name: "Osman (Boy)" }], female: [{ id: "ms_f1", name: "Yasmin (Girl)" }] },
+    lo: { name: "Lao", male: [{ id: "lo_m1", name: "Chanthavong (Boy)" }], female: [{ id: "lo_f1", name: "Keomany (Girl)" }] },
+    my: { name: "Burmese", male: [{ id: "my_m1", name: "Thiha (Boy)" }], female: [{ id: "my_f1", name: "Nilar (Girl)" }] },
+  };
+
+  const currentLangVoices = OUTPUT_LANGUAGES[targetLanguage] || OUTPUT_LANGUAGES.km;
+  const femaleVoices = currentLangVoices.female;
+  const maleVoices = currentLangVoices.male;
 
   const getCurrentStep = () => {
     if (!project) return 0;
@@ -447,6 +470,7 @@ const Editor = () => {
       setProject(r.data);
       if (r.data.segments) setSegments(r.data.segments);
       if (r.data.actors) setActors(r.data.actors);
+      if (r.data.target_language) setTargetLanguage(r.data.target_language);
       if (r.data.dubbed_audio_path) loadFile(r.data.dubbed_audio_path, 'audio');
       if (r.data.dubbed_video_path) loadFile(r.data.dubbed_video_path, 'video');
       if (r.data.original_file_path && r.data.file_type === 'video') loadFile(r.data.original_file_path, 'original');
@@ -488,12 +512,13 @@ const Editor = () => {
   };
 
   const translate = async () => {
-    setProcessingMsg("Translating to Khmer...");
+    const langName = OUTPUT_LANGUAGES[targetLanguage]?.name || "Khmer";
+    setProcessingMsg(`Translating to ${langName}...`);
     try {
-      const r = await axios.post(`${API}/projects/${projectId}/translate-segments`, {}, { headers: { Authorization: `Bearer ${token}` } });
+      const r = await axios.post(`${API}/projects/${projectId}/translate-segments?target_language=${targetLanguage}`, {}, { headers: { Authorization: `Bearer ${token}` } });
       setProject(r.data); setSegments(r.data.segments || []);
-      toast.success("Translation complete!");
-      sendNotification("KhmerDub", "Translation to Khmer complete!");
+      toast.success(`Translation to ${langName} complete!`);
+      sendNotification("KhmerDub", `Translation to ${langName} complete!`);
     } catch { toast.error("Translation failed"); }
     finally { setProcessingMsg(null); }
   };
@@ -709,7 +734,7 @@ const Editor = () => {
   const autoProcess = async () => {
     setProcessingMsg("Auto-processing: Detect → Translate → Audio...");
     try {
-      const r = await axios.post(`${API}/projects/${projectId}/auto-process?speed=${ttsSpeed}`, {}, {
+      const r = await axios.post(`${API}/projects/${projectId}/auto-process?speed=${ttsSpeed}&target_language=${targetLanguage}`, {}, {
         headers: { Authorization: `Bearer ${token}` }, timeout: 600000
       });
       setProject(r.data);
@@ -935,10 +960,24 @@ const Editor = () => {
               </button>
             )}
 
+            {/* Output Language Selector */}
+            {segments.length > 0 && (
+              <div>
+                <label className={`text-[10px] uppercase font-semibold tracking-wider mb-1.5 block ${d?'text-zinc-500':'text-zinc-500'}`}>Output Language</label>
+                <select value={targetLanguage} onChange={(e) => setTargetLanguage(e.target.value)}
+                  data-testid="target-language-select"
+                  className={`w-full text-xs px-3 py-2 border rounded-sm outline-none font-medium ${d?'bg-zinc-800 border-zinc-700 text-white':'bg-white border-black/10 text-zinc-950'}`}>
+                  {Object.entries(OUTPUT_LANGUAGES).map(([code, lang]) => (
+                    <option key={code} value={code}>{lang.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             {segments.length > 0 && (
               <button onClick={translate} disabled={!!processingMsg} data-testid="translate-btn"
                 className={`w-full py-2.5 border text-xs font-semibold rounded-sm transition-all disabled:opacity-40 ${d?'bg-zinc-800 border-zinc-700 text-zinc-200 hover:bg-zinc-700':'bg-zinc-950/5 border-zinc-950/15 text-zinc-700 hover:bg-zinc-100'}`}>
-                Translate to Khmer
+                Translate to {OUTPUT_LANGUAGES[targetLanguage]?.name || "Khmer"}
               </button>
             )}
 
