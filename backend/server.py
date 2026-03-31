@@ -1358,6 +1358,23 @@ async def auto_process(project_id: str, speed: int = Query(2), target_language: 
 app.include_router(api_router)
 app.add_middleware(CORSMiddleware, allow_credentials=True, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
+# Serve frontend build in production (Railway/Docker)
+FRONTEND_BUILD = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend", "build")
+if os.path.isdir(FRONTEND_BUILD):
+    from starlette.staticfiles import StaticFiles
+    from starlette.responses import FileResponse
+
+    @app.get("/shared/{path:path}")
+    async def serve_shared_page(path: str):
+        return FileResponse(os.path.join(FRONTEND_BUILD, "index.html"))
+
+    @app.get("/dashboard")
+    @app.get("/editor/{path:path}")
+    async def serve_spa_routes(path: str = ""):
+        return FileResponse(os.path.join(FRONTEND_BUILD, "index.html"))
+
+    app.mount("/", StaticFiles(directory=FRONTEND_BUILD, html=True), name="frontend")
+
 @app.on_event("startup")
 async def startup():
     logger.info("Storage initialized (local)")

@@ -15,8 +15,8 @@ import {
   Moon, Sun
 } from "@phosphor-icons/react";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
+const API = BACKEND_URL ? `${BACKEND_URL}/api` : '/api';
 
 // Named constants
 const UPLOAD_TIMEOUT_MS = 300000;
