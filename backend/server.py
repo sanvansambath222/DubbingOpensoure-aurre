@@ -696,8 +696,8 @@ ROLE DETECTION:
 IMPORTANT: You MUST identify at least some speakers as "male" if the dialogue contains male characters.
 
 Return ONLY JSON array:
-[{"idx": 0, "speaker": "SPEAKER_00", "gender": "male", "role": "Boss", "age": "40s", "emotion": "angry"}, ...]
-Include ALL indices 0 to """ + str(len(segments)-1) + """. gender must be "male" or "female". age should be like "20s", "30s", "40s", "50s", "60s" etc. role MUST be in English. emotion must be one of: happy, excited, sad, angry, scared, calm, serious, neutral."""
+[{"idx": 0, "speaker": "SPEAKER_00", "gender": "male", "role": "Boss", "age": "40s"}, ...]
+Include ALL indices 0 to """ + str(len(segments)-1) + """. gender must be "male" or "female". age should be like "20s", "30s", "40s", "50s", "60s" etc. role MUST be in English."""
                 )
                 detect_chat.with_model("openai", "gpt-5.2")
                 
@@ -730,8 +730,6 @@ Include ALL indices 0 to """ + str(len(segments)-1) + """. gender must be "male"
                                     segments[idx]["role"] = role
                                 if age:
                                     segments[idx]["age"] = age
-                                emotion = d.get("emotion", "neutral")
-                                segments[idx]["emotion"] = emotion
                         
                         # Verify: count unique speakers detected
                         unique_speakers = set(s["speaker"] for s in segments)
@@ -884,7 +882,6 @@ class PreviewRequest(BaseModel):
     gender: str = "female"
     speed: int = 2
     pitch: int = 0
-    emotion: str = "neutral"
 
 @api_router.post("/projects/{project_id}/preview-tts")
 async def preview_tts(project_id: str, req: PreviewRequest, authorization: str = Header(None)):
@@ -897,20 +894,12 @@ async def preview_tts(project_id: str, req: PreviewRequest, authorization: str =
     tts_path = os.path.join(tempfile.gettempdir(), f"preview_{uuid.uuid4().hex}.mp3")
     pitched_path = os.path.join(tempfile.gettempdir(), f"preview_pitched_{uuid.uuid4().hex}.mp3")
     try:
-        # Use SSML with emotion for preview too
-        ssml = build_ssml(req.text, voice, rate, req.emotion)
-        try:
-            communicate = edge_tts.Communicate(ssml, voice=voice)
-            await communicate.save(tts_path)
-        except Exception:
-            communicate = edge_tts.Communicate(req.text, voice=voice, rate=rate)
-            await communicate.save(tts_path)
-        
+        communicate = edge_tts.Communicate(req.text, voice=voice, rate=rate)
+        await communicate.save(tts_path)
         current_path = tts_path
         if req.pitch != 0:
             adjust_pitch(tts_path, pitched_path, req.pitch)
             current_path = pitched_path
-        
         with open(current_path, "rb") as f:
             audio_data = f.read()
         return Response(content=audio_data, media_type="audio/mpeg")
@@ -993,7 +982,7 @@ async def generate_audio_segments(project_id: str, speed: int = Query(2), author
             if not seg.get("translated"):
                 continue
 
-            # Use Edge TTS with SSML for more human-like voice
+            # Use Edge TTS for Khmer
             import edge_tts
             speaker = seg.get("speaker", "")
             seg_gender = seg.get("gender", "female")
@@ -1005,41 +994,25 @@ async def generate_audio_segments(project_id: str, speed: int = Query(2), author
                     break
             
             edge_voice = "km-KH-PisethNeural" if seg_gender == "male" else "km-KH-SreymomNeural"
-            emotion = seg.get("emotion", "neutral")
-            rate_str = f"+{speed}%" if speed >= 0 else f"{speed}%"
             
             try:
                 tts_path = os.path.join(tempfile.gettempdir(), f"tts_{uuid.uuid4().hex}.mp3")
                 pitched_path = os.path.join(tempfile.gettempdir(), f"tts_pitched_{uuid.uuid4().hex}.mp3")
-                mixed_path = os.path.join(tempfile.gettempdir(), f"tts_mixed_{uuid.uuid4().hex}.wav")
-                
-                # Build SSML with emotion prosody and natural pauses
-                ssml = build_ssml(seg["translated"], edge_voice, rate_str, emotion)
-                try:
-                    communicate = edge_tts.Communicate(ssml, voice=edge_voice)
-                    await communicate.save(tts_path)
-                except Exception:
-                    # Fallback to plain text if SSML fails
-                    communicate = edge_tts.Communicate(seg["translated"], voice=edge_voice, rate=rate_str)
-                    await communicate.save(tts_path)
-                
-                # Apply per-actor pitch adjustment
+                communicate = edge_tts.Communicate(seg["translated"], voice=edge_voice, rate=f"+{speed}%" if speed >= 0 else f"{speed}%")
+                await communicate.save(tts_path)
                 current_path = tts_path
                 if actor_pitch != 0:
                     adjust_pitch(tts_path, pitched_path, actor_pitch)
                     current_path = pitched_path
-                
                 audio_seg = AudioSegment.from_file(current_path)
                 segment_audio_pairs.append((seg, audio_seg))
-                
-                # Cleanup temp files
                 for p in [tts_path, pitched_path]:
                     if os.path.exists(p):
                         os.unlink(p)
             except Exception as e:
                 logger.warning(f"Edge TTS failed for segment: {e}")
                 for p in [tts_path, pitched_path]:
-                    if os.path.exists(p) and p:
+                    if os.path.exists(p):
                         try: os.unlink(p)
                         except: pass
 

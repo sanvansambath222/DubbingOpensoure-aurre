@@ -741,7 +741,7 @@ const Editor = () => {
     setPreviewingIdx(idx);
     try {
       const r = await axios.post(`${API}/projects/${projectId}/preview-tts`, 
-        { text, gender: seg.gender || 'female', speed: ttsSpeed, pitch: (() => { const a = actors.find(a => a.id === seg.speaker); return a?.pitch || 0; })(), emotion: seg.emotion || 'neutral' },
+        { text, gender: seg.gender || 'female', speed: ttsSpeed, pitch: (() => { const a = actors.find(a => a.id === seg.speaker); return a?.pitch || 0; })() },
         { headers: { Authorization: `Bearer ${token}` }, responseType: 'blob', timeout: 30000 }
       );
       const url = URL.createObjectURL(r.data);
@@ -1297,19 +1297,14 @@ const Editor = () => {
                             className="w-full bg-transparent text-cyan-300/90 border-b border-transparent hover:border-white/10 focus:border-cyan-500/50 outline-none py-0.5 text-xs" />
                         </td>
                         <td className="px-3 py-2.5">
-                          <div className="flex flex-col gap-0.5">
-                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${
-                              seg.gender === 'male'
-                                ? 'bg-blue-500/10 text-blue-400 border border-blue-500/15'
-                                : 'bg-pink-500/10 text-pink-400 border border-pink-500/15'
-                            }`}>
-                              {seg.gender === 'male' ? <GenderMale className="w-2.5 h-2.5" weight="bold" /> : <GenderFemale className="w-2.5 h-2.5" weight="bold" />}
-                              {actor?.label || seg.speaker}
-                            </span>
-                            {seg.emotion && seg.emotion !== 'neutral' && (
-                              <span className="text-[8px] text-amber-400/60 capitalize">{seg.emotion}</span>
-                            )}
-                          </div>
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                            seg.gender === 'male'
+                              ? 'bg-blue-500/10 text-blue-400 border border-blue-500/15'
+                              : 'bg-pink-500/10 text-pink-400 border border-pink-500/15'
+                          }`}>
+                            {seg.gender === 'male' ? <GenderMale className="w-2.5 h-2.5" weight="bold" /> : <GenderFemale className="w-2.5 h-2.5" weight="bold" />}
+                            {actor?.label || seg.speaker}
+                          </span>
                         </td>
                         <td className="px-3 py-2.5">
                           {hasCustom ? (
