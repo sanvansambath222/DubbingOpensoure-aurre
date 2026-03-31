@@ -301,6 +301,8 @@ const Editor = () => {
   const [audioUrl, setAudioUrl] = useState(null);
   const [videoUrl, setVideoUrl] = useState(null);
   const [burnSubs, setBurnSubs] = useState(false);
+  const [ttsSpeed, setTtsSpeed] = useState(2);
+  const [previewingIdx, setPreviewingIdx] = useState(null);
   const [originalVideoUrl, setOriginalVideoUrl] = useState(null);
   const [compareMode, setCompareMode] = useState(false);
   const [recordingIdx, setRecordingIdx] = useState(null); // segment index being recorded
@@ -389,7 +391,7 @@ const Editor = () => {
   const generateAudio = async () => {
     setProcessingMsg("Generating Khmer voices (this may take a minute)...");
     try {
-      const r = await axios.post(`${API}/projects/${projectId}/generate-audio-segments`, {}, { headers: { Authorization: `Bearer ${token}` }, timeout: 300000 });
+      const r = await axios.post(`${API}/projects/${projectId}/generate-audio-segments?speed=${ttsSpeed}`, {}, { headers: { Authorization: `Bearer ${token}` }, timeout: 300000 });
       setProject(r.data);
       if (r.data.dubbed_audio_path) loadFile(r.data.dubbed_audio_path, 'audio');
       toast.success("Audio generated!");
@@ -490,6 +492,24 @@ const Editor = () => {
 
   const fmt = (s) => { const m = Math.floor(s / 60); return `${m}:${(s % 60).toFixed(1).padStart(4, '0')}`; };
 
+  // Preview single line TTS
+  const previewLine = async (idx) => {
+    const seg = segments[idx];
+    const text = seg?.translated || seg?.original;
+    if (!text) { toast.error("No text to preview"); return; }
+    setPreviewingIdx(idx);
+    try {
+      const r = await axios.post(`${API}/projects/${projectId}/preview-tts`, 
+        { text, gender: seg.gender || 'female', speed: ttsSpeed },
+        { headers: { Authorization: `Bearer ${token}` }, responseType: 'blob', timeout: 30000 }
+      );
+      const url = URL.createObjectURL(r.data);
+      const audio = new Audio(url);
+      audio.onended = () => { setPreviewingIdx(null); URL.revokeObjectURL(url); };
+      audio.play();
+    } catch { toast.error("Preview failed"); setPreviewingIdx(null); }
+  };
+
   // Speaker colors
   const speakerColors = ['cyan', 'pink', 'amber', 'emerald', 'purple', 'rose'];
   const getSpeakerColor = (speakerId) => {
@@ -558,6 +578,21 @@ const Editor = () => {
                 className="w-full py-2.5 bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-xs font-semibold rounded-lg hover:bg-cyan-500/20 transition-all disabled:opacity-40">
                 Translate to Khmer
               </button>
+            )}
+
+            {segments.some(s => s.translated || s.custom_audio) && (
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-[10px] text-slate-500 uppercase font-semibold tracking-wider">Speed</label>
+                  <span className="text-cyan-400 text-xs font-bold">+{ttsSpeed}%</span>
+                </div>
+                <input type="range" min={-10} max={15} value={ttsSpeed} onChange={(e) => setTtsSpeed(Number(e.target.value))}
+                  data-testid="tts-speed-slider"
+                  className="w-full h-1 bg-white/10 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-cyan-400 [&::-webkit-slider-thumb]:rounded-full" />
+                <div className="flex justify-between text-[9px] text-slate-600 mt-0.5">
+                  <span>Slow</span><span>Normal</span><span>Fast</span>
+                </div>
+              </div>
             )}
 
             {segments.some(s => s.translated || s.custom_audio) && (
@@ -810,6 +845,7 @@ const Editor = () => {
             <table className="w-full text-xs" data-testid="subtitle-table">
               <thead className="bg-[#0a0e18] sticky top-0 z-10">
                 <tr className="text-slate-600 text-[10px] uppercase tracking-wider">
+                  <th className="px-3 py-2.5 text-left w-8"></th>
                   <th className="px-3 py-2.5 text-left w-10">#</th>
                   <th className="px-3 py-2.5 text-left w-16">Start</th>
                   <th className="px-3 py-2.5 text-left w-16">End</th>
@@ -824,7 +860,7 @@ const Editor = () => {
               <tbody>
                 {segments.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="text-center py-24 text-slate-600">
+                    <td colSpan={10} className="text-center py-24 text-slate-600">
                       <VideoCamera className="w-10 h-10 mx-auto mb-3 text-slate-700" weight="duotone" />
                       <p className="text-sm">Upload a video and detect speakers to get started</p>
                     </td>
@@ -836,6 +872,17 @@ const Editor = () => {
                     return (
                       <tr key={idx} className="border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors"
                         data-testid={`segment-row-${idx}`}>
+                        <td className="px-2 py-2.5">
+                          <button onClick={() => previewLine(idx)} disabled={previewingIdx !== null}
+                            data-testid={`segment-play-${idx}`}
+                            className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${
+                              previewingIdx === idx 
+                                ? 'bg-cyan-500/20 text-cyan-400 animate-pulse' 
+                                : 'text-slate-600 hover:text-cyan-400 hover:bg-white/5'
+                            }`}>
+                            <Play className="w-3 h-3" weight="fill" />
+                          </button>
+                        </td>
                         <td className="px-3 py-2.5 text-slate-600 font-mono">{idx + 1}</td>
                         <td className="px-3 py-2.5 text-slate-500 font-mono">{fmt(seg.start || 0)}</td>
                         <td className="px-3 py-2.5 text-slate-500 font-mono">{fmt(seg.end || 0)}</td>

@@ -623,9 +623,36 @@ Only output translations, nothing else."""
         )
         raise HTTPException(status_code=500, detail=str(e))
 
+# Preview single line TTS
+class PreviewRequest(BaseModel):
+    text: str
+    gender: str = "female"
+    speed: int = 2
+
+@api_router.post("/projects/{project_id}/preview-tts")
+async def preview_tts(project_id: str, req: PreviewRequest, authorization: str = Header(None)):
+    import edge_tts
+    user = await get_current_user(authorization)
+    
+    voice = "km-KH-PisethNeural" if req.gender == "male" else "km-KH-SreymomNeural"
+    rate = f"+{req.speed}%" if req.speed >= 0 else f"{req.speed}%"
+    
+    tts_path = os.path.join(tempfile.gettempdir(), f"preview_{uuid.uuid4().hex}.mp3")
+    try:
+        communicate = edge_tts.Communicate(req.text, voice=voice, rate=rate)
+        await communicate.save(tts_path)
+        with open(tts_path, "rb") as f:
+            audio_data = f.read()
+        os.unlink(tts_path)
+        return Response(content=audio_data, media_type="audio/mpeg")
+    except Exception as e:
+        if os.path.exists(tts_path):
+            os.unlink(tts_path)
+        raise HTTPException(status_code=500, detail=str(e))
+
 # Generate timestamp-aligned audio
 @api_router.post("/projects/{project_id}/generate-audio-segments")
-async def generate_audio_segments(project_id: str, authorization: str = Header(None)):
+async def generate_audio_segments(project_id: str, speed: int = Query(2), authorization: str = Header(None)):
     import requests as req
     import time
     import io
@@ -709,7 +736,7 @@ async def generate_audio_segments(project_id: str, authorization: str = Header(N
             
             try:
                 tts_path = os.path.join(tempfile.gettempdir(), f"tts_{uuid.uuid4().hex}.mp3")
-                communicate = edge_tts.Communicate(seg["translated"], voice=edge_voice, rate="+2%")
+                communicate = edge_tts.Communicate(seg["translated"], voice=edge_voice, rate=f"+{speed}%" if speed >= 0 else f"{speed}%")
                 await communicate.save(tts_path)
                 audio_seg = AudioSegment.from_file(tts_path, format="mp3")
                 segment_audio_pairs.append((seg, audio_seg))
