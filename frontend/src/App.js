@@ -621,12 +621,13 @@ const Editor = () => {
                   <th className="px-3 py-2.5 text-left">Khmer (Translated)</th>
                   <th className="px-3 py-2.5 text-left w-28">Speaker</th>
                   <th className="px-3 py-2.5 text-left w-20">Voice</th>
+                  <th className="px-3 py-2.5 text-left w-36">Add Voice</th>
                 </tr>
               </thead>
               <tbody>
                 {segments.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="text-center py-24 text-slate-600">
+                    <td colSpan={8} className="text-center py-24 text-slate-600">
                       <VideoCamera className="w-10 h-10 mx-auto mb-3 text-slate-700" weight="duotone" />
                       <p className="text-sm">Upload a video and detect speakers to get started</p>
                     </td>
@@ -667,6 +668,36 @@ const Editor = () => {
                             </span>
                           ) : (
                             <span className="text-slate-500 text-[10px]">{actor?.voice || seg.voice}</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2.5">
+                          {seg.custom_audio ? (
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-green-400 text-[10px] font-semibold flex items-center gap-0.5">
+                                <CheckCircle className="w-3 h-3" weight="fill" /> Uploaded
+                              </span>
+                              <button onClick={() => updateSegment(idx, "custom_audio", null)}
+                                data-testid={`segment-remove-voice-${idx}`}
+                                className="text-red-400/50 hover:text-red-400 text-[10px]">
+                                Remove
+                              </button>
+                            </div>
+                          ) : (
+                            <label data-testid={`segment-upload-voice-${idx}`}
+                              className="cursor-pointer inline-flex items-center gap-1 px-2.5 py-1 bg-cyan-500/8 border border-cyan-500/15 text-cyan-400 text-[10px] font-semibold hover:bg-cyan-500/15 transition-colors rounded-md">
+                              <input type="file" accept="audio/*" className="hidden"
+                                onChange={async (e) => {
+                                  const file = e.target.files?.[0]; if (!file) return;
+                                  const fd = new FormData(); fd.append('file', file); fd.append('segment_id', String(idx));
+                                  try {
+                                    const r = await axios.post(`${API}/projects/${projectId}/upload-segment-audio`, fd,
+                                      { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' } });
+                                    const updated = [...segments]; updated[idx].custom_audio = r.data.audio_path; setSegments(updated);
+                                    toast.success("Voice uploaded for this segment!");
+                                  } catch { toast.error("Upload failed"); }
+                                }} />
+                              <Upload className="w-3 h-3" /> Add Voice
+                            </label>
                           )}
                         </td>
                       </tr>
