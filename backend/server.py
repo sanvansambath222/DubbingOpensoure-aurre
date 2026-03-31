@@ -443,57 +443,35 @@ async def transcribe_segments(project_id: str, authorization: str = Header(None)
                     "voice": "sophea"
                 })
 
-            # Step 2: Analyze voice pitch for each MERGED segment (longer = more accurate)
-            pitch_genders = []
-            for seg_data in segments:
-                pg = analyze_pitch(audio_path, seg_data["start"], seg_data["end"])
-                pitch_genders.append(pg)
-            logger.info(f"Audio pitch analysis: {pitch_genders}")
-            
-            # If pitch analysis found any results, apply them directly first
-            for i, pg in enumerate(pitch_genders):
-                if pg and i < len(segments):
-                    segments[i]["gender"] = pg
-                    segments[i]["voice"] = "dara" if pg == "male" else "sophea"
-
-            # Step 3: Use GPT to detect speakers AND confirm/correct gender
+            # Step 2: Detect speakers using GPT (text-based, more reliable than pitch)
             if segments:
-                pitch_hints = []
-                for i, pg in enumerate(pitch_genders):
-                    hint = f"Line {i}: audio_pitch={pg}" if pg else f"Line {i}: audio_pitch=unknown"
-                    pitch_hints.append(hint)
-                pitch_info = "\n".join(pitch_hints)
-
                 detect_chat = LlmChat(
                     api_key=EMERGENT_LLM_KEY,
                     session_id=f"detect_{project_id}_{uuid.uuid4().hex[:6]}",
-                    system_message="""You must analyze Chinese dialogue to identify:
-1. WHO speaks each line (speaker ID)
-2. GENDER: boy(male) or girl(female) for each speaker
-3. ROLE: character name/title
+                    system_message="""You analyze Chinese video dialogue to identify speakers and their GENDER.
 
-Audio pitch analysis per line:
-""" + pitch_info + """
+CRITICAL GENDER RULES:
+- Characters with titles 爷/哥/先生/老板/少爷/大哥 = MALE
+- Characters with titles 姐/妹/女士/太太/老婆/小姐 = FEMALE  
+- 老子/我(aggressive) = MALE speaker
+- 弟弟 = MALE (younger brother)
+- 姐姐 = FEMALE (older sister)
+- 九爷 = MALE, 少爷 = MALE
+- Aggressive/commanding speech (滚/找死/给我滚/狗东西) = usually MALE
+- Most Chinese drama conversations have BOTH male AND female characters
+- If unsure about gender, look at HOW they speak: commanding/rough = male, gentle/polite = could be either
 
-GENDER DETECTION RULES (IMPORTANT):
-- If audio_pitch says "male" → the speaker is most likely a BOY/MAN
-- If audio_pitch says "female" → the speaker is most likely a GIRL/WOMAN  
-- Text clues that confirm male: 老子, 哥, 爷, aggressive tone, deep commands
-- Text clues that confirm female: 姐, 妹, 老婆, soft/emotional tone
-- Characters like 九爷, 少爷 = male (爷 means male elder/master)
-- Characters called 老婆, 女朋友 = female
+SPEAKER GROUPING:
+- Use SPEAKER_00, SPEAKER_01, SPEAKER_02 etc.
+- Different conversation turns = different speakers  
+- Same person consecutive lines = same ID
+- When someone is ADDRESSED by title, the REPLY is a different person
 
-SPEAKER GROUPING RULES:
-- Different speakers get different IDs: SPEAKER_00, SPEAKER_01, SPEAKER_02
-- Same person across lines = SAME speaker ID
-- When one person addresses another, the reply is a DIFFERENT speaker
-- This video likely has 2-5 different people talking
+IMPORTANT: You MUST identify at least some speakers as "male" if the dialogue contains male characters. Do NOT mark everyone as female.
 
-Return ONLY a JSON array (no other text):
-[{"idx": 0, "speaker": "SPEAKER_00", "gender": "male", "role": "Boss"}, {"idx": 1, "speaker": "SPEAKER_01", "gender": "female", "role": "Servant"}, ...]
-
-EVERY line index from 0 to """ + str(len(segments)-1) + """ must be included.
-gender MUST be "male" or "female" for every entry."""
+Return ONLY JSON array:
+[{"idx": 0, "speaker": "SPEAKER_00", "gender": "male", "role": "Boss"}, ...]
+Include ALL indices 0 to """ + str(len(segments)-1) + """. gender must be "male" or "female"."""
                 )
                 detect_chat.with_model("openai", "gpt-5.2")
                 
