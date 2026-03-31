@@ -309,6 +309,7 @@ const Editor = () => {
   const { projectId } = useProjectId();
   const [project, setProject] = useState(null);
   const [segments, setSegments] = useState([]);
+  const [actors, setActors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [audioUrl, setAudioUrl] = useState(null);
@@ -344,6 +345,11 @@ const Editor = () => {
       // Load segments if available
       if (response.data.segments) {
         setSegments(response.data.segments);
+      }
+      
+      // Load actors if available
+      if (response.data.actors) {
+        setActors(response.data.actors);
       }
       
       // Load audio/video if available
@@ -407,11 +413,82 @@ const Editor = () => {
       });
       setProject(response.data);
       setSegments(response.data.segments || []);
-      toast.success("Transcription complete with speaker detection!");
+      setActors(response.data.actors || []);
+      toast.success("Detected speakers and text!");
     } catch (error) {
       toast.error(error.response?.data?.detail || "Transcription failed");
     } finally {
       setProcessing(false);
+    }
+  };
+
+  const updateActor = async (actorId, field, value) => {
+    const updatedActors = actors.map(a => 
+      a.id === actorId ? { ...a, [field]: value } : a
+    );
+    setActors(updatedActors);
+    
+    // Update segments that belong to this actor
+    const actor = updatedActors.find(a => a.id === actorId);
+    let updatedSegments = segments;
+    if (actor) {
+      if (field === 'voice') {
+        updatedSegments = segments.map(s => 
+          s.speaker === actorId ? { ...s, voice: value } : s
+        );
+      } else if (field === 'gender') {
+        // When gender changes, also update voice and segment gender
+        const newVoice = value === 'male' ? 'dara' : 'sophea';
+        updatedSegments = segments.map(s => 
+          s.speaker === actorId ? { ...s, gender: value, voice: newVoice } : s
+        );
+        // Also update actor voice
+        updatedActors.forEach(a => {
+          if (a.id === actorId) a.voice = newVoice;
+        });
+        setActors([...updatedActors]);
+      }
+      setSegments(updatedSegments);
+    }
+    
+    // Save to backend
+    try {
+      await axios.patch(`${API}/projects/${projectId}`, 
+        { actors: updatedActors, segments: updatedSegments },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+    } catch (error) {
+      console.error("Failed to save actor");
+    }
+  };
+
+  const uploadActorVoice = async (actorId, file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('actor_id', actorId);
+    
+    try {
+      const response = await axios.post(
+        `${API}/projects/${projectId}/upload-actor-voice`,
+        formData,
+        { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' } }
+      );
+      
+      // Update actor with voice path
+      const updatedActors = actors.map(a => 
+        a.id === actorId ? { ...a, custom_voice: response.data.voice_path } : a
+      );
+      setActors(updatedActors);
+      
+      // Update all segments for this actor
+      const updatedSegments = segments.map(s => 
+        s.speaker === actorId ? { ...s, custom_audio: response.data.voice_path } : s
+      );
+      setSegments(updatedSegments);
+      
+      toast.success("Voice uploaded for actor!");
+    } catch (err) {
+      toast.error("Upload failed");
     }
   };
 
@@ -515,9 +592,11 @@ const Editor = () => {
       </header>
 
       {/* Main Content */}
-      <div className="flex-1 flex">
-        {/* Left Panel - Controls */}
-        <div className="w-80 bg-[#0d1520] border-r border-[#1e293b] p-4 flex flex-col gap-4">
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Top Bar - Controls + Actors */}
+        <div className="flex">
+          {/* Left Panel - Controls */}
+          <div className="w-80 min-w-[320px] bg-[#0d1520] border-r border-[#1e293b] p-4 flex flex-col gap-4 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 52px)' }}>
           {/* Upload */}
           <div>
             <label className="text-xs text-[#64748b] uppercase mb-2 block">1. Upload Video</label>
@@ -635,9 +714,125 @@ const Editor = () => {
               </div>
             </div>
           )}
+          </div>
+
+          {/* Right - Actors Panel */}
+          <div className="flex-1 bg-[#0a0f1a] border-b border-[#1e293b] overflow-y-auto" style={{ maxHeight: '280px' }}>
+            {actors.length > 0 ? (
+              <div className="p-4">
+                <h3 className="text-xs text-[#64748b] uppercase mb-3 flex items-center gap-2">
+                  <User className="w-4 h-4" /> Detected Actors in Video
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                  {actors.map((actor) => (
+                    <div
+                      key={actor.id}
+                      data-testid={`actor-card-${actor.id}`}
+                      className="bg-[#0d1520] border border-[#1e293b] rounded-lg p-4 hover:border-[#00d4ff]/30 transition-colors"
+                    >
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold ${
+                          actor.gender === 'male' 
+                            ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' 
+                            : 'bg-pink-500/20 text-pink-400 border border-pink-500/30'
+                        }`}>
+                          {actor.gender === 'male' ? 'B' : 'G'}
+                        </div>
+                        <div>
+                          <p className="text-white font-bold text-sm">{actor.label || actor.id}</p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <select
+                              data-testid={`actor-gender-${actor.id}`}
+                              value={actor.gender || 'female'}
+                              onChange={(e) => updateActor(actor.id, 'gender', e.target.value)}
+                              className="bg-[#1e293b] text-xs px-2 py-0.5 border-none outline-none rounded text-[#94a3b8]"
+                            >
+                              <option value="female">Girl</option>
+                              <option value="male">Boy</option>
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* AI Voice Selection */}
+                      <div className="mb-3">
+                        <label className="text-[10px] text-[#64748b] uppercase block mb-1">AI Voice</label>
+                        <select
+                          data-testid={`actor-voice-${actor.id}`}
+                          value={actor.voice || (actor.gender === 'male' ? 'dara' : 'sophea')}
+                          onChange={(e) => updateActor(actor.id, 'voice', e.target.value)}
+                          className="w-full bg-[#1e293b] text-white text-xs px-2 py-1.5 border-none outline-none rounded"
+                          disabled={!!actor.custom_voice}
+                        >
+                          {actor.gender === 'male' ? (
+                            maleVoices.map(v => <option key={v.id} value={v.id}>{v.name}</option>)
+                          ) : (
+                            femaleVoices.map(v => <option key={v.id} value={v.id}>{v.name}</option>)
+                          )}
+                        </select>
+                      </div>
+
+                      {/* Custom Voice Upload */}
+                      <div>
+                        <label className="text-[10px] text-[#64748b] uppercase block mb-1">Your Voice</label>
+                        {actor.custom_voice ? (
+                          <div className="flex items-center gap-2 bg-[#22c55e]/10 px-3 py-2 rounded border border-[#22c55e]/20">
+                            <CheckCircle className="w-4 h-4 text-[#22c55e]" weight="fill" />
+                            <span className="text-[#22c55e] text-xs font-bold flex-1">Voice Uploaded</span>
+                            <button
+                              data-testid={`actor-remove-voice-${actor.id}`}
+                              onClick={() => {
+                                const updated = actors.map(a =>
+                                  a.id === actor.id ? { ...a, custom_voice: null } : a
+                                );
+                                setActors(updated);
+                                // Remove custom_audio from all segments of this actor
+                                const updatedSegs = segments.map(s =>
+                                  s.speaker === actor.id ? { ...s, custom_audio: null } : s
+                                );
+                                setSegments(updatedSegs);
+                                // Save to backend
+                                axios.patch(`${API}/projects/${projectId}`,
+                                  { actors: updated, segments: updatedSegs },
+                                  { headers: { Authorization: `Bearer ${token}` } }
+                                ).catch(() => {});
+                              }}
+                              className="text-[#ef4444] text-xs hover:underline"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        ) : (
+                          <label
+                            data-testid={`actor-upload-voice-${actor.id}`}
+                            className="cursor-pointer flex items-center justify-center gap-2 px-3 py-2 bg-[#00d4ff]/10 border border-[#00d4ff]/20 text-[#00d4ff] text-xs font-bold hover:bg-[#00d4ff]/20 transition-colors rounded"
+                          >
+                            <input
+                              type="file"
+                              accept="audio/*"
+                              className="hidden"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) uploadActorVoice(actor.id, file);
+                              }}
+                            />
+                            <Upload className="w-3 h-3" /> Upload Voice
+                          </label>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : segments.length === 0 ? (
+              <div className="flex items-center justify-center h-full text-[#64748b] text-sm p-8">
+                Upload a video and click "Extract Text" to auto-detect actors
+              </div>
+            ) : null}
+          </div>
         </div>
 
-        {/* Right Panel - Subtitle Table */}
+        {/* Bottom - Subtitle Table */}
         <div className="flex-1 overflow-auto">
           <table className="w-full text-sm">
             <thead className="bg-[#0d1520] sticky top-0 z-10">
@@ -649,112 +844,69 @@ const Editor = () => {
                 <th className="px-3 py-3 text-left">Translated</th>
                 <th className="px-3 py-3 text-left w-28">Speaker</th>
                 <th className="px-3 py-3 text-left w-20">Gender</th>
-                <th className="px-3 py-3 text-left w-36">AI Voice</th>
-                <th className="px-3 py-3 text-left w-36">Your Voice</th>
+                <th className="px-3 py-3 text-left w-36">Voice</th>
               </tr>
             </thead>
             <tbody>
               {segments.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="text-center py-20 text-[#64748b]">
-                    Upload a video and click "Auto Transcribe" to detect speakers
+                  <td colSpan={8} className="text-center py-20 text-[#64748b]">
+                    Upload a video and click "Extract Text & Timestamps" to detect actors
                   </td>
                 </tr>
               ) : (
-                segments.map((seg, idx) => (
-                  <tr key={idx} className="border-b border-[#1e293b] hover:bg-[#0d1520]/50">
-                    <td className="px-3 py-3 text-[#64748b]">{idx + 1}</td>
-                    <td className="px-3 py-3 text-[#94a3b8] font-mono text-xs">{formatTime(seg.start || 0)}</td>
-                    <td className="px-3 py-3 text-[#94a3b8] font-mono text-xs">{formatTime(seg.end || 0)}</td>
-                    <td className="px-3 py-3">
-                      <input
-                        type="text"
-                        value={seg.original || ""}
-                        onChange={(e) => updateSegment(idx, "original", e.target.value)}
-                        className="w-full bg-transparent text-white border-b border-transparent hover:border-[#1e293b] focus:border-[#00d4ff] outline-none py-1"
-                      />
-                    </td>
-                    <td className="px-3 py-3">
-                      <input
-                        type="text"
-                        value={seg.translated || ""}
-                        onChange={(e) => updateSegment(idx, "translated", e.target.value)}
-                        className="w-full bg-transparent text-[#00d4ff] border-b border-transparent hover:border-[#1e293b] focus:border-[#00d4ff] outline-none py-1"
-                      />
-                    </td>
-                    <td className="px-3 py-3 text-[#94a3b8] text-xs">
-                      {seg.speaker || `SPEAKER_${String(idx % 2).padStart(2, '0')}`}
-                    </td>
-                    <td className="px-3 py-3">
-                      <select
-                        value={seg.gender || "female"}
-                        onChange={(e) => updateSegment(idx, "gender", e.target.value)}
-                        className="bg-[#1e293b] text-white text-xs px-2 py-1 border-none outline-none"
-                      >
-                        <option value="female">female</option>
-                        <option value="male">male</option>
-                      </select>
-                    </td>
-                    <td className="px-3 py-3">
-                      <select
-                        value={seg.voice || (seg.gender === "male" ? "dara" : "sophea")}
-                        onChange={(e) => updateSegment(idx, "voice", e.target.value)}
-                        className="bg-[#1e293b] text-white text-xs px-2 py-1 border-none outline-none w-full"
-                        disabled={seg.custom_audio}
-                      >
-                        {seg.gender === "male" ? (
-                          maleVoices.map(v => <option key={v.id} value={v.id}>{v.name}</option>)
+                segments.map((seg, idx) => {
+                  const actor = actors.find(a => a.id === seg.speaker);
+                  const hasActorVoice = actor?.custom_voice;
+                  return (
+                    <tr key={idx} className="border-b border-[#1e293b] hover:bg-[#0d1520]/50">
+                      <td className="px-3 py-3 text-[#64748b]">{idx + 1}</td>
+                      <td className="px-3 py-3 text-[#94a3b8] font-mono text-xs">{formatTime(seg.start || 0)}</td>
+                      <td className="px-3 py-3 text-[#94a3b8] font-mono text-xs">{formatTime(seg.end || 0)}</td>
+                      <td className="px-3 py-3">
+                        <input
+                          type="text"
+                          value={seg.original || ""}
+                          onChange={(e) => updateSegment(idx, "original", e.target.value)}
+                          className="w-full bg-transparent text-white border-b border-transparent hover:border-[#1e293b] focus:border-[#00d4ff] outline-none py-1"
+                        />
+                      </td>
+                      <td className="px-3 py-3">
+                        <input
+                          type="text"
+                          value={seg.translated || ""}
+                          onChange={(e) => updateSegment(idx, "translated", e.target.value)}
+                          className="w-full bg-transparent text-[#00d4ff] border-b border-transparent hover:border-[#1e293b] focus:border-[#00d4ff] outline-none py-1"
+                        />
+                      </td>
+                      <td className="px-3 py-3">
+                        <span className={`text-xs font-bold px-2 py-1 rounded ${
+                          seg.gender === 'male' 
+                            ? 'bg-blue-500/10 text-blue-400' 
+                            : 'bg-pink-500/10 text-pink-400'
+                        }`}>
+                          {actor?.label || seg.speaker || `Speaker ${idx}`}
+                        </span>
+                      </td>
+                      <td className="px-3 py-3">
+                        <span className={`text-xs ${seg.gender === 'male' ? 'text-blue-400' : 'text-pink-400'}`}>
+                          {seg.gender === 'male' ? 'Boy' : 'Girl'}
+                        </span>
+                      </td>
+                      <td className="px-3 py-3">
+                        {hasActorVoice ? (
+                          <span className="text-[#22c55e] text-xs font-bold flex items-center gap-1">
+                            <CheckCircle className="w-3 h-3" weight="fill" /> Custom
+                          </span>
                         ) : (
-                          femaleVoices.map(v => <option key={v.id} value={v.id}>{v.name}</option>)
+                          <span className="text-[#94a3b8] text-xs">
+                            {actor?.voice || seg.voice || 'sophea'}
+                          </span>
                         )}
-                      </select>
-                    </td>
-                    <td className="px-3 py-3">
-                      {seg.custom_audio ? (
-                        <div className="flex items-center gap-2">
-                          <span className="text-[#22c55e] text-xs font-bold">✓ Uploaded</span>
-                          <button
-                            onClick={() => updateSegment(idx, "custom_audio", null)}
-                            className="text-[#ef4444] text-xs hover:underline"
-                          >
-                            Remove
-                          </button>
-                        </div>
-                      ) : (
-                        <label className="cursor-pointer inline-flex items-center gap-1 px-3 py-1.5 bg-[#00d4ff] text-[#0a0f1a] text-xs font-bold hover:bg-[#00b8e6] transition-colors">
-                          <input
-                            type="file"
-                            accept="audio/*"
-                            className="hidden"
-                            onChange={async (e) => {
-                              const file = e.target.files?.[0];
-                              if (!file) return;
-                              
-                              const formData = new FormData();
-                              formData.append('file', file);
-                              formData.append('segment_id', String(idx));
-                              
-                              try {
-                                const response = await axios.post(
-                                  `${API}/projects/${projectId}/upload-segment-audio`,
-                                  formData,
-                                  { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' } }
-                                );
-                                const updatedSegs = [...segments];
-                                updatedSegs[idx].custom_audio = response.data.audio_path;
-                                setSegments(updatedSegs);
-                                toast.success("Your voice uploaded!");
-                              } catch (err) {
-                                toast.error("Upload failed");
-                              }
-                            }}
-                          />
-                          <Upload className="w-3 h-3" /> Record/Upload
-                        </label>
-                      )}
-                    </td>
-                  </tr>
-                ))
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>

@@ -1,0 +1,64 @@
+{
+  "summary": "Completed testing of actor-related features for Khmer Dubbing app. All backend APIs working correctly after fixing Form parameter issue. Frontend Editor UI displays actors panel with Boy/Girl gender, AI voice selection, and custom voice upload correctly.",
+  
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  
+  "passed_tests": [
+    "POST /api/projects/{id}/upload-actor-voice - uploads custom voice for actor",
+    "PATCH /api/projects/{id} - accepts 'actors' field in update payload",
+    "PATCH /api/projects/{id} - accepts 'segments' field in update payload",
+    "POST /api/projects/{id}/transcribe-segments - returns proper error without file",
+    "GET /api/projects/{id} - returns actors array with id, label, gender, voice, custom_voice fields",
+    "Actor voice upload persists custom_voice in actor and custom_audio in segments",
+    "Frontend Editor: Actors panel displays detected actors with Boy/Girl gender icons",
+    "Frontend Editor: AI voice dropdown shows correct voices per gender",
+    "Frontend Editor: Upload Voice button present for each actor",
+    "Frontend Editor: Changing actor gender updates all related segments",
+    "Frontend Editor: Subtitle table shows speaker labels, gender as Boy/Girl, and voice status",
+    "Frontend: Landing page renders correctly with Sign In button",
+    "Frontend: Dashboard page renders when logged in with projects list"
+  ],
+  
+  "test_report_links": [
+    "/app/backend/tests/test_actors_api.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  
+  "action_items": [],
+  
+  "critical_code_review_comments": [],
+  
+  "updated_files": [
+    "/app/backend/server.py - Fixed upload-actor-voice endpoint to use Form() for actor_id parameter",
+    "/app/backend/tests/test_actors_api.py - Created comprehensive test suite for actor APIs"
+  ],
+  
+  "success_rate": {
+    "backend": "100% (11/11 tests passed)",
+    "frontend": "100% (all UI elements verified)"
+  },
+  
+  "seed_data_creation": "Created test user (test-user-001) and session (test_session_001) for testing",
+  
+  "retest_needed": false,
+  
+  "should_main_agent_self_test": false,
+  
+  "context_for_next_testing_agent": "Actor features fully implemented and tested. Backend uses Form() for multipart form data parameters. Test credentials: session token 'test_session_001' for user 'test-user-001'. All actor-related endpoints working: upload-actor-voice, PATCH with actors/segments, transcribe-segments returns actors array.",
+  
+  "bug_fix_applied": {
+    "issue": "upload-actor-voice endpoint was receiving empty actor_id",
+    "root_cause": "FastAPI parameter actor_id was not marked as Form() field, so multipart form data was not being parsed correctly",
+    "fix": "Changed 'actor_id: str = \"\"' to 'actor_id: str = Form(\"\")' in server.py line 459",
+    "verification": "All 11 backend tests pass including actor voice upload and persistence tests"
+  }
+}

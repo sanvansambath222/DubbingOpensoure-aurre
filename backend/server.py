@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Header, UploadFile, File, Response, Query, BackgroundTasks
+from fastapi import FastAPI, APIRouter, HTTPException, Header, UploadFile, File, Response, Query, BackgroundTasks, Form
 from fastapi.responses import StreamingResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -151,6 +151,7 @@ class ProjectUpdate(BaseModel):
     female_voice: Optional[str] = None
     male_voice: Optional[str] = None
     segments: Optional[List[dict]] = None
+    actors: Optional[List[dict]] = None
 
 class TranslateRequest(BaseModel):
     chinese_text: str
@@ -450,6 +451,51 @@ async def upload_segment_audio(
     
     return {"audio_path": result["path"], "segment_id": segment_id}
 
+# Upload custom voice for an actor
+@api_router.post("/projects/{project_id}/upload-actor-voice")
+async def upload_actor_voice(
+    project_id: str,
+    file: UploadFile = File(...),
+    actor_id: str = Form(""),
+    authorization: str = Header(None)
+):
+    """Upload custom voice audio for a specific actor (applies to all their segments)"""
+    user = await get_current_user(authorization)
+    
+    project = await db.projects.find_one({"project_id": project_id, "user_id": user.user_id})
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    data = await file.read()
+    ext = file.filename.split(".")[-1] if "." in file.filename else "wav"
+    path = f"{APP_NAME}/custom_audio/{user.user_id}/{project_id}/actor_{actor_id}_{uuid.uuid4().hex}.{ext}"
+    
+    result = put_object(path, data, file.content_type or "audio/wav")
+    
+    # Update actor with custom voice path
+    actors = project.get("actors", [])
+    for actor in actors:
+        if actor["id"] == actor_id:
+            actor["custom_voice"] = result["path"]
+            break
+    
+    # Also update all segments belonging to this actor
+    segments = project.get("segments", [])
+    for seg in segments:
+        if seg.get("speaker") == actor_id:
+            seg["custom_audio"] = result["path"]
+    
+    await db.projects.update_one(
+        {"project_id": project_id},
+        {"$set": {
+            "actors": actors,
+            "segments": segments,
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }}
+    )
+    
+    return {"voice_path": result["path"], "actor_id": actor_id}
+
 # Transcribe audio/video
 @api_router.post("/projects/{project_id}/transcribe")
 async def transcribe_project(project_id: str, authorization: str = Header(None)):
@@ -679,10 +725,28 @@ Return a JSON array with segment index and gender:
                 except Exception as e:
                     logger.warning(f"Gender detection failed: {e}")
             
+            # Build actors list from unique speakers
+            speaker_map = {}
+            for seg in segments:
+                spk = seg.get("speaker", "SPEAKER_00")
+                if spk not in speaker_map:
+                    speaker_map[spk] = seg.get("gender", "female")
+            
+            actors = []
+            for spk, gender in speaker_map.items():
+                actors.append({
+                    "id": spk,
+                    "label": spk.replace("SPEAKER_", "Actor ").replace("_", " "),
+                    "gender": gender,
+                    "voice": "dara" if gender == "male" else "sophea",
+                    "custom_voice": None
+                })
+            
             await db.projects.update_one(
                 {"project_id": project_id},
                 {"$set": {
                     "segments": segments,
+                    "actors": actors,
                     "status": "transcribed",
                     "updated_at": datetime.now(timezone.utc).isoformat()
                 }}
@@ -800,19 +864,33 @@ async def generate_audio_segments(project_id: str, authorization: str = Header(N
             "dara": 1, "virak": 1, "sokha": 1, "pich": 1
         }
         
+        # Build actor voice map (actor_id -> custom_voice_path)
+        actors = project.get("actors", [])
+        actor_voice_map = {}
+        actor_ai_voice_map = {}
+        for actor in actors:
+            if actor.get("custom_voice"):
+                actor_voice_map[actor["id"]] = actor["custom_voice"]
+            if actor.get("voice"):
+                actor_ai_voice_map[actor["id"]] = actor["voice"]
+        
         audio_parts = []
         
         for seg in segments:
             if not seg.get("translated") and not seg.get("custom_audio"):
                 continue
             
-            # Check if segment has custom audio
-            if seg.get("custom_audio"):
+            # Priority: segment custom_audio > actor custom_voice > AI TTS
+            custom_audio_path = seg.get("custom_audio")
+            if not custom_audio_path:
+                speaker = seg.get("speaker", "")
+                custom_audio_path = actor_voice_map.get(speaker)
+            
+            if custom_audio_path:
                 # Use custom uploaded audio
                 try:
-                    custom_audio_data, _ = get_object(seg["custom_audio"])
-                    # Try to detect format from extension
-                    ext = seg["custom_audio"].split(".")[-1].lower() if "." in seg["custom_audio"] else "wav"
+                    custom_audio_data, _ = get_object(custom_audio_path)
+                    ext = custom_audio_path.split(".")[-1].lower() if "." in custom_audio_path else "wav"
                     audio_segment = AudioSegment.from_file(io.BytesIO(custom_audio_data), format=ext)
                     audio_parts.append(audio_segment)
                     continue
@@ -822,8 +900,10 @@ async def generate_audio_segments(project_id: str, authorization: str = Header(N
             # Use AI TTS
             if not seg.get("translated"):
                 continue
-                
-            voice = seg.get("voice", "sophea")
+            
+            # Use actor-level AI voice if set, otherwise segment voice
+            speaker = seg.get("speaker", "")
+            voice = actor_ai_voice_map.get(speaker, seg.get("voice", "sophea"))
             gender = voice_gender.get(voice, 2)
             
             # Generate TTS
