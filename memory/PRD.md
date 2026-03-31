@@ -13,7 +13,11 @@ Build Dubbing China to Khmer using python website following top trending design 
 - Auto-detect actors (Boy/Girl) and upload custom voice per actor
 - Share dubbed project via public link
 
-## Architecture
+## Design
+- **Theme**: Swiss & High-Contrast (Light theme)
+- **Fonts**: Outfit (headings), IBM Plex Sans (body), JetBrains Mono (code/timestamps)
+- **Colors**: White backgrounds, zinc-950 text, emerald accents for success, sharp corners (rounded-sm)
+- **Actor cards**: Blue gradient (Boy), Pink gradient (Girl) with thick colored borders
 - **Frontend**: React 19, Tailwind CSS, Phosphor Icons, Framer Motion
 - **Backend**: FastAPI, MongoDB, Python
 - **Integrations**:
