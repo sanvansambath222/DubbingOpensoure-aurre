@@ -887,68 +887,15 @@ const Editor = () => {
                         {!actor.custom_voice && (
                           <div className="flex items-center gap-1">
                             <div className={`flex-1 text-[10px] px-1.5 py-1 border rounded-md truncate ${d?'bg-zinc-700 text-zinc-200 border-zinc-600':'bg-zinc-50 text-zinc-700 border-zinc-300'}`}>
-                              {actor.tts_provider === 'gemini' ? (
-                                <span className="flex items-center gap-1">
-                                  <span className={`text-[8px] font-bold px-1 py-0.5 rounded ${d?'bg-emerald-900/40 text-emerald-300':'bg-emerald-50 text-emerald-600'}`}>Gemini</span>
-                                  {actor.gemini_voice || 'Select voice'}
-                                </span>
-                              ) : (
-                                <span className="flex items-center gap-1">
-                                  <span className={`text-[8px] font-bold px-1 py-0.5 rounded ${d?'bg-zinc-600 text-zinc-300':'bg-zinc-200 text-zinc-600'}`}>Edge</span>
-                                  {(isMale ? maleVoices : femaleVoices).find(v => v.id === actor.voice)?.name || actor.voice || 'Select voice'}
-                                </span>
-                              )}
+                              <span className="flex items-center gap-1">
+                                <span className={`text-[8px] font-bold px-1 py-0.5 rounded ${d?'bg-zinc-600 text-zinc-300':'bg-zinc-200 text-zinc-600'}`}>Edge</span>
+                                {(isMale ? maleVoices : femaleVoices).find(v => v.id === actor.voice)?.name || actor.voice || 'Select voice'}
+                              </span>
                             </div>
                             <button onClick={() => openVoicePicker(actor.id)} data-testid={`actor-browse-voices-${actor.id}`}
                               className={`px-2 py-1 text-[9px] font-bold rounded-md border transition-colors ${d?'bg-cyan-900/30 border-cyan-700 text-cyan-300 hover:bg-cyan-900/50':'bg-cyan-50 border-cyan-200 text-cyan-700 hover:bg-cyan-100'}`}>
                               Browse
                             </button>
-                          </div>
-                        )}
-                        {/* Gemini Voice Mods */}
-                        {actor.tts_provider === 'gemini' && !actor.custom_voice && (
-                          <div className={`rounded-md border px-2 py-1.5 space-y-1.5 ${d?'bg-zinc-800/50 border-zinc-700':'bg-zinc-50/50 border-zinc-200'}`} data-testid={`gemini-mods-${actor.id}`}>
-                            <p className={`text-[8px] font-bold uppercase tracking-wider ${d?'text-emerald-400':'text-emerald-600'}`}>Voice Mod</p>
-                            <div className="flex items-center gap-1.5">
-                              <span className={`text-[9px] w-10 ${d?'text-zinc-400':'text-zinc-500'}`}>Speed</span>
-                              <select value={actor.gemini_speed || 'normal'} data-testid={`gemini-speed-${actor.id}`}
-                                onChange={e => updateActor(actor.id, 'gemini_speed', e.target.value)}
-                                className={`flex-1 text-[9px] px-1 py-0.5 border rounded outline-none ${d?'bg-zinc-700 border-zinc-600 text-white':'bg-white border-zinc-300 text-zinc-800'}`}>
-                                <option value="very slow">Very Slow</option>
-                                <option value="slow">Slow</option>
-                                <option value="normal">Normal</option>
-                                <option value="fast">Fast</option>
-                                <option value="very fast">Very Fast</option>
-                              </select>
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                              <span className={`text-[9px] w-10 ${d?'text-zinc-400':'text-zinc-500'}`}>Pitch</span>
-                              <select value={actor.gemini_pitch || 'normal'} data-testid={`gemini-pitch-${actor.id}`}
-                                onChange={e => updateActor(actor.id, 'gemini_pitch', e.target.value)}
-                                className={`flex-1 text-[9px] px-1 py-0.5 border rounded outline-none ${d?'bg-zinc-700 border-zinc-600 text-white':'bg-white border-zinc-300 text-zinc-800'}`}>
-                                <option value="very low">Very Low</option>
-                                <option value="low">Low</option>
-                                <option value="normal">Normal</option>
-                                <option value="high">High</option>
-                                <option value="very high">Very High</option>
-                              </select>
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                              <span className={`text-[9px] w-10 ${d?'text-zinc-400':'text-zinc-500'}`}>Tone</span>
-                              <select value={actor.gemini_emotion || 'neutral'} data-testid={`gemini-emotion-${actor.id}`}
-                                onChange={e => updateActor(actor.id, 'gemini_emotion', e.target.value)}
-                                className={`flex-1 text-[9px] px-1 py-0.5 border rounded outline-none ${d?'bg-zinc-700 border-zinc-600 text-white':'bg-white border-zinc-300 text-zinc-800'}`}>
-                                <option value="neutral">Neutral</option>
-                                <option value="happy">Happy</option>
-                                <option value="excited">Excited</option>
-                                <option value="calm">Calm</option>
-                                <option value="sad">Sad</option>
-                                <option value="angry">Angry</option>
-                                <option value="serious">Serious</option>
-                                <option value="friendly">Friendly</option>
-                                <option value="whispering">Whisper</option>
-                              </select>
-                            </div>
                           </div>
                         )}
                         {actor.custom_voice ? (
