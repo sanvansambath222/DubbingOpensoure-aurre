@@ -24,7 +24,13 @@ const GCLOUD_LANG_MAP = {
   ru: "ru-RU", ar: "ar-XA", it: "it-IT", ms: "ms-MY",
 };
 
-const VoicePickerModal = ({ open, onClose, onSelect, actorGender, targetLanguage, isDark, token }) => {
+const GEMINI_AGE_MAP = {
+  Young: ["Bright", "Youthful", "Excitable", "Upbeat"],
+  Adult: ["Informative", "Firm", "Forward", "Breeze"],
+  Mature: ["Mature", "Soft", "Gentle"],
+};
+
+const VoicePickerModal = ({ open, onClose, onSelect, actorGender, actorName, targetLanguage, isDark, token }) => {
   const d = isDark;
   const [tab, setTab] = useState("edge");
   const [gcloudVoices, setGcloudVoices] = useState([]);
@@ -33,6 +39,7 @@ const VoicePickerModal = ({ open, onClose, onSelect, actorGender, targetLanguage
   const [geminiLoading, setGeminiLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [genderFilter, setGenderFilter] = useState("ALL");
+  const [ageFilter, setAgeFilter] = useState("ALL");
   const [langFilter, setLangFilter] = useState(GCLOUD_LANG_MAP[targetLanguage] ? targetLanguage : "");
   const [playingVoice, setPlayingVoice] = useState(null);
   const audioRef = useRef(null);
@@ -105,6 +112,11 @@ const VoicePickerModal = ({ open, onClose, onSelect, actorGender, targetLanguage
             <div className="flex items-center gap-2">
               <SpeakerHigh className={`w-5 h-5 ${d ? 'text-white' : 'text-zinc-950'}`} weight="fill" />
               <h2 className={`font-semibold text-base ${d ? 'text-white' : 'text-zinc-950'}`} style={{ fontFamily: "'Outfit', sans-serif" }}>Voice Picker</h2>
+              {actorName && (
+                <span className={`text-xs px-2 py-0.5 rounded-sm ${d ? 'bg-emerald-900/50 text-emerald-400' : 'bg-emerald-50 text-emerald-700'}`} data-testid="voice-picker-actor-name">
+                  for {actorName}
+                </span>
+              )}
             </div>
             <button onClick={onClose} className={`p-1.5 rounded-sm transition-colors ${d ? 'hover:bg-zinc-700 text-zinc-400' : 'hover:bg-zinc-100 text-zinc-500'}`}>
               <X className="w-5 h-5" />
@@ -129,18 +141,46 @@ const VoicePickerModal = ({ open, onClose, onSelect, actorGender, targetLanguage
 
           {/* Filters */}
           {(tab === "gcloud" || tab === "gemini") && (
-            <div className={`flex items-center gap-2 px-5 py-3 border-b ${d ? 'border-zinc-800' : 'border-black/5'}`}>
-              <div className="relative flex-1">
-                <MagnifyingGlass className="w-3.5 h-3.5 text-zinc-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
-                <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search voice name..."
-                  className={`w-full pl-8 pr-3 py-1.5 border rounded-sm text-xs outline-none ${d ? 'bg-zinc-800 border-zinc-700 text-white' : 'bg-zinc-50 border-black/10 text-zinc-950'}`} />
+            <div className={`flex flex-col gap-2 px-5 py-3 border-b ${d ? 'border-zinc-800' : 'border-black/5'}`}>
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <MagnifyingGlass className="w-3.5 h-3.5 text-zinc-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                  <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search voice name..."
+                    className={`w-full pl-8 pr-3 py-1.5 border rounded-sm text-xs outline-none ${d ? 'bg-zinc-800 border-zinc-700 text-white' : 'bg-zinc-50 border-black/10 text-zinc-950'}`} />
+                </div>
+                {tab === "gcloud" && (
+                  <select value={langFilter} onChange={e => setLangFilter(e.target.value)}
+                    className={`px-2 py-1.5 border rounded-sm text-xs outline-none ${d ? 'bg-zinc-800 border-zinc-700 text-white' : 'bg-zinc-50 border-black/10 text-zinc-950'}`}>
+                    <option value="">All Languages</option>
+                    {Object.entries(GCLOUD_LANG_MAP).map(([k]) => <option key={k} value={k}>{EDGE_VOICES[k]?.name || k.toUpperCase()}</option>)}
+                  </select>
+                )}
               </div>
-              {tab === "gcloud" && (
-                <select value={langFilter} onChange={e => setLangFilter(e.target.value)}
-                  className={`px-2 py-1.5 border rounded-sm text-xs outline-none ${d ? 'bg-zinc-800 border-zinc-700 text-white' : 'bg-zinc-50 border-black/10 text-zinc-950'}`}>
-                  <option value="">All Languages</option>
-                  {Object.entries(GCLOUD_LANG_MAP).map(([k]) => <option key={k} value={k}>{EDGE_VOICES[k]?.name || k.toUpperCase()}</option>)}
-                </select>
+              {tab === "gemini" && (
+                <div className="flex items-center gap-1.5" data-testid="gemini-age-filter">
+                  <span className={`text-[10px] font-bold uppercase tracking-wider mr-1 ${d ? 'text-zinc-500' : 'text-zinc-400'}`}>Age:</span>
+                  {["ALL", "Young", "Adult", "Mature"].map(age => (
+                    <button key={age} onClick={() => setAgeFilter(age)} data-testid={`age-filter-${age.toLowerCase()}`}
+                      className={`px-2.5 py-1 text-[10px] font-bold uppercase rounded-sm border transition-all ${
+                        ageFilter === age
+                          ? (d ? 'bg-emerald-900/50 border-emerald-600 text-emerald-400' : 'bg-emerald-50 border-emerald-400 text-emerald-700')
+                          : (d ? 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:border-zinc-500' : 'bg-white border-black/10 text-zinc-500 hover:border-zinc-300')
+                      }`}>
+                      {age === "ALL" ? "All" : age}
+                    </button>
+                  ))}
+                  <span className={`text-[10px] font-bold uppercase tracking-wider ml-3 mr-1 ${d ? 'text-zinc-500' : 'text-zinc-400'}`}>Gender:</span>
+                  {["ALL", "MALE", "FEMALE"].map(g => (
+                    <button key={g} onClick={() => setGenderFilter(g)} data-testid={`gender-filter-${g.toLowerCase()}`}
+                      className={`px-2.5 py-1 text-[10px] font-bold uppercase rounded-sm border transition-all ${
+                        genderFilter === g
+                          ? (d ? 'bg-emerald-900/50 border-emerald-600 text-emerald-400' : 'bg-emerald-50 border-emerald-400 text-emerald-700')
+                          : (d ? 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:border-zinc-500' : 'bg-white border-black/10 text-zinc-500 hover:border-zinc-300')
+                      }`}>
+                      {g === "ALL" ? "All" : g === "MALE" ? "Boy" : "Girl"}
+                    </button>
+                  ))}
+                </div>
               )}
             </div>
           )}
@@ -185,6 +225,7 @@ const VoicePickerModal = ({ open, onClose, onSelect, actorGender, targetLanguage
                   </p>
                   <div className="grid grid-cols-2 gap-1.5">
                     {geminiVoices.filter(v => genderFilter === "ALL" || v.gender === genderFilter)
+                      .filter(v => ageFilter === "ALL" || (GEMINI_AGE_MAP[ageFilter] || []).includes(v.style))
                       .filter(v => !search || v.name.toLowerCase().includes(search.toLowerCase()))
                       .map(voice => {
                       const isMale = voice.gender === "MALE";
@@ -203,7 +244,13 @@ const VoicePickerModal = ({ open, onClose, onSelect, actorGender, targetLanguage
                           {isMale ? <GenderMale className="w-3.5 h-3.5 text-blue-500" weight="bold" /> : <GenderFemale className="w-3.5 h-3.5 text-pink-500" weight="bold" />}
                           <div className="flex-1 min-w-0">
                             <p className={`text-xs font-semibold ${d ? 'text-zinc-200' : 'text-zinc-700'}`}>{voice.name}</p>
-                            <p className="text-[9px] text-zinc-500">{voice.style} - {voice.gender}</p>
+                            <p className="text-[9px] text-zinc-500">
+                              {voice.style} - {voice.gender === "MALE" ? "Boy" : "Girl"}
+                              {" - "}
+                              <span className={voice.style && Object.entries(GEMINI_AGE_MAP).find(([,styles]) => styles.includes(voice.style))?.[0] === "Young" ? "text-blue-500" : voice.style && Object.entries(GEMINI_AGE_MAP).find(([,styles]) => styles.includes(voice.style))?.[0] === "Mature" ? "text-amber-500" : "text-zinc-500"}>
+                                {Object.entries(GEMINI_AGE_MAP).find(([,styles]) => styles.includes(voice.style))?.[0] || "Adult"}
+                              </span>
+                            </p>
                           </div>
                           <button
                             onClick={e => { e.stopPropagation(); isPlaying ? stopPreview() : previewGcloudVoice(voice.name, "This is a voice preview."); }}

@@ -1165,6 +1165,7 @@ const Editor = () => {
         onClose={() => setVoicePickerOpen(false)}
         onSelect={handleVoiceSelect}
         actorGender={actors.find(a => a.id === voicePickerActorId)?.gender || "female"}
+        actorName={voicePickerActorId}
         targetLanguage={targetLanguage}
         isDark={d}
         token={token}
