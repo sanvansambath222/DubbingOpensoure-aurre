@@ -1,16 +1,10 @@
-# Khmer Dubbing Hub - Product Requirements Document
+# Khmer Dubbing Hub - PRD
 
 ## Problem Statement
-Build a video/audio dubbing platform (China to Khmer and multi-language) with AI-powered transcription, translation, TTS voices, and subtitle editing.
+Build a video/audio dubbing platform (China to Khmer and multi-language) with AI transcription, translation, TTS voices, and subtitle editing.
 
-## Core Requirements
-- Video/Audio upload with Whisper transcription
-- Multi-language translation via GPT-5.2
-- Multiple TTS providers: Microsoft Edge TTS (free), Gemini TTS (free)
-- Subtitle/segment editor with per-line controls
-- Custom voice upload per detected actor
-- Fast parallel processing for long videos (1h+)
-- Background music preservation in dubbed output
+## Domain
+dubcambodia.com (IONOS, DNS setup in progress)
 
 ## Architecture
 - Frontend: React (modularized components)
@@ -23,7 +17,7 @@ Build a video/audio dubbing platform (China to Khmer and multi-language) with AI
 - LandingPage.jsx - Marketing/auth entry
 - Dashboard.jsx - Project listing
 - Editor.jsx - Main editor with segments, actors, voice controls
-- VoicePickerModal.jsx - Voice selection (Edge + Gemini tabs)
+- VoicePickerModal.jsx - Voice selection (Edge TTS only)
 - EditorWidgets.jsx - Reusable editor UI pieces
 - SharedProject.jsx - Public sharing view
 - AuthContext.jsx - Auth state management
@@ -33,25 +27,28 @@ Build a video/audio dubbing platform (China to Khmer and multi-language) with AI
 - [x] Whisper transcription (via Emergent LLM key)
 - [x] GPT-5.2 translation (via Emergent LLM key)
 - [x] Microsoft Edge TTS (free, unlimited)
-- [x] Gemini TTS integration (free tier, rate-limited)
-- [x] Google Cloud TTS integration (removed from UI per user request, backend still available)
 - [x] Custom voice upload (file + YouTube yt-dlp extraction)
 - [x] Long video processing (1h+, MP3 format, 15min timeouts)
 - [x] Component refactoring (App.js split into 6 modules)
 - [x] Auto-cleanup job (12h project expiry)
 - [x] Clear All Projects functionality
 - [x] Deployment-ready configs (Dockerfile, railway.toml)
-- [x] Voice Mod controls for Gemini (Speed, Pitch, Emotion per actor)
 - [x] Per-line speed control (0.5x to 2.0x)
-- [x] Speaker reassignment dropdown per line
+- [x] Per-line speaker reassignment dropdown
+- [x] Per-line audio regenerate button
 - [x] Actor line filter (click line count to filter segments)
 - [x] Background music preservation (extract + mix with dubbed audio)
 - [x] Cross-origin Script error suppression
-- [x] Gemini TTS rate limit handling (sequential + exponential backoff)
 - [x] Bulk DB cleanup optimization (delete_many)
-- [x] Deployment health check passed
+- [x] Deployment health check passed x2
+
+## Removed Features
+- Google Cloud TTS (removed per user request)
+- Gemini TTS (removed - API quota issues on free tier)
+- Gemini Voice Mod controls (removed with Gemini)
 
 ## Upcoming Tasks (P0)
+- [ ] Deploy to dubcambodia.com
 - [ ] Stripe payment integration (Free/Basic/Pro/Business)
 - [ ] Usage limits per plan (credits, video counts)
 
@@ -61,18 +58,14 @@ Build a video/audio dubbing platform (China to Khmer and multi-language) with AI
 - [ ] Export different video quality (P2)
 - [ ] Team workspace (P3)
 - [ ] Multi-language UI (P3)
-- [ ] Waveform timeline (P3)
 
 ## 3rd Party Integrations
 - OpenAI GPT-5.2 (Translation) - Emergent LLM Key
 - OpenAI Whisper (Transcription) - Emergent LLM Key
 - Microsoft Edge TTS - Free / No Key
-- Google Gemini TTS (google-genai) - User API Key in .env
-- YouTube (yt-dlp) - Free / No Key
 
 ## Known Issues
 - FFmpeg missing on container restart (reinstall via apt-get)
-- Gemini TTS rate limits on free tier (10 req/min) - mitigated with sequential processing
 
 ## DB Schema
 - projects: {project_id, user_id, title, target_language, status, segments[], actors[], file_type, original_file_path, dubbed_audio_path, dubbed_video_path, created_at}
