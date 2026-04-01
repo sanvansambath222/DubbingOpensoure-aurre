@@ -33,7 +33,7 @@ const VoicePickerModal = ({ open, onClose, onSelect, actorGender, targetLanguage
   const [geminiLoading, setGeminiLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [genderFilter, setGenderFilter] = useState("ALL");
-  const [langFilter, setLangFilter] = useState(targetLanguage || "");
+  const [langFilter, setLangFilter] = useState(GCLOUD_LANG_MAP[targetLanguage] ? targetLanguage : "");
   const [playingVoice, setPlayingVoice] = useState(null);
   const audioRef = useRef(null);
 
