@@ -1116,6 +1116,8 @@ async def extract_youtube_voice(project_id: str, req: YoutubeExtractRequest, aut
             'quiet': True,
             'no_warnings': True,
             'socket_timeout': 30,
+            'js_runtimes': {'node': {}},
+            'remote_components': {'ejs:github': {}},
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(req.url, download=True)
