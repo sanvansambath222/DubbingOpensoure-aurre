@@ -620,6 +620,23 @@ const Editor = () => {
     axios.patch(`${API}/projects/${projectId}`, { actors: updated, segments: updatedSegs }, { headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
   };
 
+  const [ytUrl, setYtUrl] = useState("");
+  const [ytLoading, setYtLoading] = useState(null);
+
+  const extractYoutubeVoice = async (actorId) => {
+    if (!ytUrl.trim()) { toast.error("Paste YouTube URL first"); return; }
+    setYtLoading(actorId);
+    try {
+      const r = await axios.post(`${API}/projects/${projectId}/youtube-voice`,
+        { url: ytUrl.trim(), actor_id: actorId },
+        { headers: { Authorization: `Bearer ${token}` }, timeout: 120000 });
+      setActors(actors.map(a => a.id === actorId ? { ...a, custom_voice: r.data.path } : a));
+      toast.success(`Voice from "${r.data.title}" added!`);
+      setYtUrl("");
+    } catch (e) { toast.error(e.response?.data?.detail || "YouTube download failed"); }
+    finally { setYtLoading(null); }
+  };
+
   // Voice Recording
   const startRecording = async (segIdx, actorId) => {
     try {
@@ -1285,6 +1302,23 @@ const Editor = () => {
                                 </button>
                               </div>
                             )}
+                            {/* YouTube Voice Extract */}
+                            <div className="mt-1">
+                              <div className="flex gap-1">
+                                <input type="text" placeholder="YouTube URL..."
+                                  value={ytLoading === actor.id ? "Downloading..." : ytUrl}
+                                  onChange={(e) => setYtUrl(e.target.value)}
+                                  disabled={ytLoading === actor.id}
+                                  data-testid={`actor-yt-url-${actor.id}`}
+                                  className={`flex-1 px-1.5 py-1 border rounded-md text-[9px] outline-none ${d?'bg-zinc-700 border-zinc-600 text-zinc-200 placeholder-zinc-500':'bg-zinc-50 border-zinc-300 text-zinc-700 placeholder-zinc-400'} ${ytLoading === actor.id ? 'opacity-50' : ''}`} />
+                                <button onClick={() => extractYoutubeVoice(actor.id)}
+                                  disabled={ytLoading === actor.id}
+                                  data-testid={`actor-yt-extract-${actor.id}`}
+                                  className={`px-1.5 py-1 border text-[9px] font-semibold rounded-md transition-colors ${ytLoading === actor.id ? 'opacity-50' : ''} ${d?'bg-red-900/30 border-red-700 text-red-400':'bg-red-50 border-red-200 text-red-600'}`}>
+                                  YT
+                                </button>
+                              </div>
+                            </div>
                           </div>
                         )}
 

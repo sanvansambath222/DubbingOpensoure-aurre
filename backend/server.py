@@ -1090,6 +1090,83 @@ async def generate_audio_segments(project_id: str, speed: int = Query(2), author
         )
         raise HTTPException(status_code=500, detail=str(e))
 
+# Extract audio from YouTube URL
+class YoutubeExtractRequest(BaseModel):
+    url: str
+    actor_id: str = ""
+
+@api_router.post("/projects/{project_id}/youtube-voice")
+async def extract_youtube_voice(project_id: str, req: YoutubeExtractRequest, authorization: str = Header(None)):
+    import yt_dlp
+    user = await get_current_user(authorization)
+    project = await db.projects.find_one({"project_id": project_id, "user_id": user.user_id})
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    output_path = os.path.join(tempfile.gettempdir(), f"yt_{uuid.uuid4().hex}")
+    try:
+        ydl_opts = {
+            'outtmpl': f'{output_path}.%(ext)s',
+            'format': 'bestaudio/best',
+            'postprocessors': [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'mp3',
+                'preferredquality': '192',
+            }],
+            'quiet': True,
+            'no_warnings': True,
+            'socket_timeout': 30,
+        }
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(req.url, download=True)
+            title = info.get('title', 'YouTube Audio')
+            duration = info.get('duration', 0)
+
+        mp3_path = f"{output_path}.mp3"
+        if not os.path.exists(mp3_path):
+            raise HTTPException(status_code=500, detail="Audio extraction failed")
+
+        with open(mp3_path, "rb") as f:
+            audio_data = f.read()
+        os.unlink(mp3_path)
+
+        # Save to storage
+        storage_path = f"khmer-dubbing/{project_id}/yt_voice_{uuid.uuid4().hex[:8]}.mp3"
+        put_object(storage_path, audio_data, "audio/mpeg")
+
+        # If actor_id provided, assign to that actor
+        if req.actor_id:
+            actors = project.get("actors", [])
+            for a in actors:
+                if a["id"] == req.actor_id:
+                    a["custom_voice"] = storage_path
+                    break
+            await db.projects.update_one(
+                {"project_id": project_id},
+                {"$set": {"actors": actors, "updated_at": datetime.now(timezone.utc).isoformat()}}
+            )
+
+        return {
+            "path": storage_path,
+            "title": title,
+            "duration": duration,
+            "size": len(audio_data),
+            "actor_id": req.actor_id,
+        }
+    except yt_dlp.utils.DownloadError as e:
+        raise HTTPException(status_code=400, detail=f"Cannot download: {str(e)[:100]}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        for ext in ['.mp3', '.m4a', '.webm', '.opus', '.wav']:
+            p = f"{output_path}{ext}"
+            if os.path.exists(p):
+                try:
+                    os.unlink(p)
+                except OSError:
+                    pass
+
+
 # Generate video with optional burned-in subtitles
 @api_router.post("/projects/{project_id}/generate-video")
 async def generate_video(project_id: str, burn_subtitles: bool = Query(False), authorization: str = Header(None)):
