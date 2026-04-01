@@ -1,0 +1,78 @@
+{
+  "summary": "Completed testing of YouTube voice extraction and custom voice upload features. All 10 backend tests passed (100%). Frontend compiles without errors and YouTube URL input UI renders correctly in actor cards. YouTube voice extraction endpoint successfully downloads audio from YouTube and saves to actor's custom_voice field.",
+
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+
+  "passed_tests": [
+    "POST /api/projects - create project returns 200/201 with project_id",
+    "GET /api/projects - list projects returns 200 with array",
+    "GET /api/projects/{id} - get project detail returns correct data",
+    "POST /api/projects/{id}/youtube-voice - endpoint exists (not 404)",
+    "POST /api/projects/{id}/youtube-voice - requires authentication (401 without token)",
+    "POST /api/projects/{id}/youtube-voice - invalid URL returns 400/500 error",
+    "POST /api/projects/{id}/youtube-voice - non-existent project returns 404",
+    "POST /api/projects/{id}/upload-actor-voice - endpoint exists",
+    "POST /api/projects/{id}/upload-actor-voice - requires authentication",
+    "POST /api/projects/{id}/upload-actor-voice - accepts file upload",
+    "YouTube voice extraction returns path, title, duration, size fields",
+    "YouTube voice extraction saves custom_voice to actor",
+    "Frontend compiles without errors",
+    "Frontend renders YouTube URL input in actor cards (data-testid='actor-yt-url-{id}')",
+    "Frontend renders YT extract button in actor cards (data-testid='actor-yt-extract-{id}')"
+  ],
+
+  "test_report_links": [
+    "/app/backend/tests/test_youtube_voice.py",
+    "/app/test_reports/pytest/pytest_youtube_voice.xml"
+  ],
+
+  "action_items": [],
+
+  "critical_code_review_comments": [],
+
+  "updated_files": [
+    "/app/backend/tests/test_youtube_voice.py"
+  ],
+
+  "success_rate": {
+    "backend": "100% (10/10 tests passed, 1 skipped)",
+    "frontend": "100% (all UI elements verified)"
+  },
+
+  "seed_data_creation": "Updated project proj_ad466688a6b2 with 2 actors and 2 segments for UI testing. YouTube voice extracted from Rick Astley video saved to SPEAKER_00.",
+
+  "retest_needed": false,
+
+  "should_main_agent_self_test": false,
+
+  "context_for_next_testing_agent": "YouTube voice extraction feature fully working. Endpoint POST /api/projects/{id}/youtube-voice accepts {url, actor_id} and returns {path, title, duration, size, actor_id}. Custom voice upload endpoint POST /api/projects/{id}/upload-actor-voice accepts multipart form with file and actor_id. Frontend has YouTube URL input and YT button in each actor card. Test session: test_session_001 for user test-user-001. Test project: proj_ad466688a6b2 has 2 actors with SPEAKER_00 having custom_voice set.",
+
+  "features_verified": {
+    "youtube_voice_extraction": "POST /api/projects/{id}/youtube-voice - downloads audio from YouTube URL, saves to storage, assigns to actor",
+    "youtube_response_fields": "Returns path, title, duration, size, actor_id",
+    "custom_voice_persistence": "custom_voice field saved to actor in database",
+    "upload_actor_voice": "POST /api/projects/{id}/upload-actor-voice - accepts file upload and assigns to actor",
+    "frontend_youtube_ui": "YouTube URL input and YT button render in actor cards with data-testid attributes",
+    "frontend_compilation": "No errors, compiles successfully"
+  },
+
+  "youtube_extraction_test_result": {
+    "url_tested": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+    "response": {
+      "path": "khmer-dubbing/proj_ad466688a6b2/yt_voice_1cf93921.mp3",
+      "title": "Rick Astley - Never Gonna Give You Up (Official Video) (4K Remaster)",
+      "duration": 213,
+      "size": 5114349,
+      "actor_id": "SPEAKER_00"
+    }
+  }
+}
