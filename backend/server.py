@@ -1971,8 +1971,8 @@ async def auto_cleanup_old_projects():
             ).to_list(length=500)
 
             deleted_count = 0
+            # Clean up files first
             for project in old_projects:
-                # Delete stored files
                 for key in ["original_file_path", "dubbed_audio_path", "dubbed_video_path"]:
                     file_path = project.get(key)
                     if file_path:
@@ -1980,9 +1980,12 @@ async def auto_cleanup_old_projects():
                             delete_object(file_path)
                         except Exception:
                             pass
-                # Delete project from DB
-                await db.projects.delete_one({"project_id": project["project_id"]})
                 deleted_count += 1
+
+            # Bulk delete from DB
+            if old_projects:
+                project_ids = [p["project_id"] for p in old_projects]
+                await db.projects.delete_many({"project_id": {"$in": project_ids}})
 
             if deleted_count > 0:
                 logger.info(f"Auto-cleanup: deleted {deleted_count} projects older than {PROJECT_MAX_AGE_HOURS} hours")
