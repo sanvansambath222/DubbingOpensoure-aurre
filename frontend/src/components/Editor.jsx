@@ -1108,12 +1108,26 @@ const Editor = () => {
                             className={`w-full bg-transparent border-b border-transparent hover:border-black/10 focus:border-zinc-400 outline-none py-0.5 text-xs ${d?'text-zinc-300':'text-zinc-700/90'}`} />
                         </td>
                         <td className="px-3 py-2.5">
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-sm text-[10px] font-semibold ${
-                            seg.gender === 'male' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/15' : 'bg-pink-500/10 text-pink-400 border border-pink-500/15'
-                          }`}>
-                            {seg.gender === 'male' ? <GenderMale className="w-2.5 h-2.5" weight="bold" /> : <GenderFemale className="w-2.5 h-2.5" weight="bold" />}
-                            {actor?.label || seg.speaker}
-                          </span>
+                          <select value={seg.speaker || ''} data-testid={`segment-speaker-${idx}`}
+                            onChange={(e) => {
+                              const newSpeaker = e.target.value;
+                              const newActor = actors.find(a => a.id === newSpeaker);
+                              const newGender = newActor?.gender || 'female';
+                              const newVoice = newActor?.voice || (newGender === 'male' ? 'dara' : 'sophea');
+                              const updated = [...segments];
+                              updated[idx] = { ...updated[idx], speaker: newSpeaker, gender: newGender, voice: newVoice };
+                              setSegments(updated);
+                              axios.patch(`${API}/projects/${projectId}`, { segments: updated }, { headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
+                            }}
+                            className={`px-2 py-0.5 rounded-sm text-[10px] font-semibold border cursor-pointer outline-none ${
+                              seg.gender === 'male'
+                                ? (d ? 'bg-blue-900/30 text-blue-300 border-blue-700/40' : 'bg-blue-50 text-blue-700 border-blue-200')
+                                : (d ? 'bg-pink-900/30 text-pink-300 border-pink-700/40' : 'bg-pink-50 text-pink-700 border-pink-200')
+                            }`}>
+                            {actors.map(a => (
+                              <option key={a.id} value={a.id}>{a.label || a.id}</option>
+                            ))}
+                          </select>
                         </td>
                         <td className="px-3 py-2.5">
                           {hasCustom ? (
