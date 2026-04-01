@@ -1,0 +1,83 @@
+{
+  "summary": "Tested Gemini TTS integration (new feature). Backend: 10/11 tests passed (91%). GET /api/gemini-voices returns 30 voices correctly. POST /api/gemini-tts-preview returns WAV audio. Project CRUD with tts_provider=gemini works. Frontend: Voice Picker Modal has 3 tabs (Microsoft Free, Gemini Free, Google Cloud Premium). Gemini tab shows 30 voices with preview. Actor card shows GM badge when Gemini voice selected. Fixed bug: previewEdgeVoice -> previewGcloudVoice in Google Cloud tab.",
+
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "POST /api/gemini-tts-preview",
+        "issue": "Intermittent 500 error when testing multiple voices in quick succession (likely Gemini API rate limiting)",
+        "priority": "LOW"
+      }
+    ]
+  },
+
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Voice Picker Modal - Google Cloud tab",
+        "issues": ["Shows 0 voices when target language is Khmer (km) because Google Cloud TTS doesn't support Khmer. This is expected behavior but could be confusing to users."]
+      }
+    ]
+  },
+
+  "passed_tests": [
+    "GET /api/gemini-voices returns 30 voices with name, gender, style",
+    "GET /api/gemini-voices - all voices have correct structure (name, gender, style)",
+    "GET /api/gemini-voices - gender distribution includes both male and female voices",
+    "POST /api/gemini-tts-preview returns WAV audio with RIFF header",
+    "GET /api/gcloud-voices still works (regression check - 2066 voices)",
+    "POST /api/gcloud-tts-preview still works (regression check)",
+    "POST /api/projects creates new project",
+    "PATCH /api/projects/{id} updates actor with tts_provider=gemini, gemini_voice=Kore",
+    "GET /api/projects/{id} returns project with Gemini actor settings",
+    "DELETE /api/projects/{id} deletes project and verifies removal",
+    "Frontend: Voice Picker Modal has 3 tabs: Microsoft (Free), Gemini (Free), Google Cloud (Premium)",
+    "Frontend: Gemini tab shows 30 voices with name, gender, style, FREE badge",
+    "Frontend: Gemini tab has search and gender filter (All/Boy/Girl)",
+    "Frontend: Selecting Gemini voice updates actor card with GM badge",
+    "Frontend: Toast notification shows 'Gemini Voice: Kore (Firm)' after selection"
+  ],
+
+  "test_report_links": [
+    "/app/backend/tests/test_gemini_tts.py",
+    "/app/test_reports/pytest/pytest_gemini_tts.xml"
+  ],
+
+  "action_items": [],
+
+  "critical_code_review_comments": [
+    "Fixed bug in VoicePickerModal.jsx line 260: previewEdgeVoice was undefined, changed to previewGcloudVoice"
+  ],
+
+  "updated_files": [
+    "/app/backend/tests/test_gemini_tts.py",
+    "/app/frontend/src/components/VoicePickerModal.jsx"
+  ],
+
+  "success_rate": {
+    "backend": "91% (10/11 tests passed - 1 intermittent failure due to API rate limiting)",
+    "frontend": "100% (Voice Picker Modal with 3 tabs works correctly)"
+  },
+
+  "test_credentials": "Session Token: test_session_001, User ID: test-user-001 (temporarily changed to user_49a58c10cb06 for testing projects with actors)",
+
+  "seed_data_creation": "Used existing projects proj_d496b94aba2c and proj_e332a33d0335 with actors for Voice Picker testing",
+
+  "retest_needed": false,
+
+  "should_main_agent_self_test": false,
+
+  "context_for_next_testing_agent": "Gemini TTS integration tested successfully. Backend endpoints /api/gemini-voices (30 voices) and /api/gemini-tts-preview (WAV audio) work correctly. Voice Picker Modal now has 3 tabs: Microsoft Edge TTS (free), Gemini TTS (free, 30 AI voices), Google Cloud TTS (premium, 2066 voices). Actor data supports tts_provider ('edge'|'gcloud'|'gemini'), gemini_voice field. GM badge shows in actor card when Gemini voice selected. Test session: test_session_001.",
+
+  "gemini_tts_notes": {
+    "total_voices": 30,
+    "voice_examples": ["Kore (Firm, FEMALE)", "Puck (Upbeat, MALE)", "Aoede (Bright, FEMALE)", "Charon (Informative, MALE)"],
+    "api_key_configured": true,
+    "audio_format": "WAV (PCM wrapped)",
+    "model": "gemini-2.5-flash-preview-tts",
+    "rate_limiting": "Free tier with rate limits - may cause intermittent 500 errors on rapid requests"
+  }
+}

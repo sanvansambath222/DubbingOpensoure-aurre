@@ -26,6 +26,7 @@ db = client[os.environ['DB_NAME']]
 EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY')
 CAMB_API_KEY = os.environ.get('CAMB_API_KEY')
 GOOGLE_CLOUD_TTS_API_KEY = os.environ.get('GOOGLE_CLOUD_TTS_API_KEY')
+GEMINI_TTS_API_KEY = os.environ.get('GEMINI_TTS_API_KEY')
 
 GOOGLE_TTS_SYNTHESIZE_URL = "https://texttospeech.googleapis.com/v1/text:synthesize"
 GOOGLE_TTS_VOICES_URL = "https://texttospeech.googleapis.com/v1/voices"
@@ -1128,16 +1129,19 @@ async def _generate_audio_sync(project_id, project, segments, speed, user):
 
         custom_pairs, tts_segments = separate_custom_and_tts_segments(segments, actor_voice_map)
 
-        # Build actor provider map (edge vs gcloud)
+        # Build actor provider map (edge vs gcloud vs gemini)
         actor_provider_map = {}
         actor_gcloud_voice_map = {}
         actor_gcloud_lang_map = {}
+        actor_gemini_voice_map = {}
         for a in actors:
             actor_provider_map[a["id"]] = a.get("tts_provider", "edge")
             if a.get("gcloud_voice"):
                 actor_gcloud_voice_map[a["id"]] = a["gcloud_voice"]
             if a.get("gcloud_language"):
                 actor_gcloud_lang_map[a["id"]] = a["gcloud_language"]
+            if a.get("gemini_voice"):
+                actor_gemini_voice_map[a["id"]] = a["gemini_voice"]
 
         # Parallel TTS generation
         import edge_tts
@@ -1174,6 +1178,25 @@ async def _generate_audio_sync(project_id, project, segments, speed, user):
                         if attempt < 2:
                             await asyncio.sleep(1)
                 logger.error(f"Google TTS failed after 3 attempts, falling back to Edge TTS")
+
+            # Gemini TTS
+            if provider == "gemini" and GEMINI_TTS_API_KEY and speaker in actor_gemini_voice_map:
+                gemini_voice = actor_gemini_voice_map[speaker]
+                for attempt in range(3):
+                    try:
+                        audio_bytes = await synthesize_gemini_tts(
+                            text=seg["translated"],
+                            voice_name=gemini_voice,
+                        )
+                        audio_seg = AudioSegment.from_file(io.BytesIO(audio_bytes), format="wav")
+                        if seg_duration_ms > 0:
+                            audio_seg = fit_audio_to_duration(audio_seg, seg_duration_ms)
+                        return (seg, audio_seg)
+                    except Exception as e:
+                        logger.warning(f"Gemini TTS attempt {attempt+1}/3 failed: {e}")
+                        if attempt < 2:
+                            await asyncio.sleep(1)
+                logger.error(f"Gemini TTS failed after 3 attempts, falling back to Edge TTS")
 
             # Edge TTS (default or fallback)
             edge_voice = get_edge_voice(target_lang, seg_gender, actor_ai_voice_map.get(speaker))
@@ -1661,6 +1684,92 @@ async def synthesize_gcloud_tts(text: str, voice_name: str, language_code: str, 
         if r.status_code != 200:
             raise Exception(f"Google TTS failed: {r.text[:200]}")
         return base64.b64decode(r.json()["audioContent"])
+
+
+# ===== Gemini TTS Integration =====
+
+GEMINI_TTS_VOICES = [
+    {"name": "Aoede", "gender": "FEMALE", "style": "Bright"},
+    {"name": "Charon", "gender": "MALE", "style": "Informative"},
+    {"name": "Fenrir", "gender": "MALE", "style": "Excitable"},
+    {"name": "Kore", "gender": "FEMALE", "style": "Firm"},
+    {"name": "Puck", "gender": "MALE", "style": "Upbeat"},
+    {"name": "Leda", "gender": "FEMALE", "style": "Youthful"},
+    {"name": "Orus", "gender": "MALE", "style": "Firm"},
+    {"name": "Zephyr", "gender": "MALE", "style": "Breeze"},
+    {"name": "Achernar", "gender": "FEMALE", "style": "Soft"},
+    {"name": "Gacrux", "gender": "MALE", "style": "Mature"},
+    {"name": "Pulcherrima", "gender": "FEMALE", "style": "Forward"},
+    {"name": "Vindemiatrix", "gender": "FEMALE", "style": "Gentle"},
+    {"name": "Sadachbia", "gender": "MALE", "style": "Lively"},
+    {"name": "Sadaltager", "gender": "MALE", "style": "Knowledgeable"},
+    {"name": "Sulafat", "gender": "FEMALE", "style": "Warm"},
+    {"name": "Achird", "gender": "MALE", "style": "Friendly"},
+    {"name": "Zubenelgenubi", "gender": "MALE", "style": "Casual"},
+    {"name": "Schedar", "gender": "FEMALE", "style": "Even"},
+    {"name": "Callirrhoe", "gender": "FEMALE", "style": "Easy-going"},
+    {"name": "Despina", "gender": "FEMALE", "style": "Smooth"},
+    {"name": "Erinome", "gender": "FEMALE", "style": "Clear"},
+    {"name": "Algenib", "gender": "MALE", "style": "Gravelly"},
+    {"name": "Rasalgethi", "gender": "MALE", "style": "Informative"},
+    {"name": "Umbriel", "gender": "MALE", "style": "Easy-going"},
+    {"name": "Alnilam", "gender": "MALE", "style": "Firm"},
+    {"name": "Algieba", "gender": "MALE", "style": "Smooth"},
+    {"name": "Dione", "gender": "FEMALE", "style": "Confident"},
+    {"name": "Elara", "gender": "FEMALE", "style": "Soft"},
+    {"name": "Isonoe", "gender": "FEMALE", "style": "Hypnotic"},
+    {"name": "Autonoe", "gender": "FEMALE", "style": "Bright"},
+]
+
+@api_router.get("/gemini-voices")
+async def list_gemini_voices():
+    """List available Gemini TTS voices."""
+    if not GEMINI_TTS_API_KEY:
+        raise HTTPException(status_code=400, detail="Gemini TTS not configured")
+    return {"voices": GEMINI_TTS_VOICES, "total": len(GEMINI_TTS_VOICES)}
+
+@api_router.post("/gemini-tts-preview")
+async def preview_gemini_tts(req: GCloudTTSRequest):
+    """Preview a Gemini TTS voice (returns WAV audio)."""
+    if not GEMINI_TTS_API_KEY:
+        raise HTTPException(status_code=400, detail="Gemini TTS not configured")
+    try:
+        audio_bytes = await synthesize_gemini_tts(req.text, req.voice_name)
+        return Response(content=audio_bytes, media_type="audio/wav")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)[:200])
+
+async def synthesize_gemini_tts(text: str, voice_name: str) -> bytes:
+    """Synthesize speech using Gemini TTS. Returns WAV bytes."""
+    import wave, io
+    from google import genai
+    from google.genai import types as gtypes
+
+    client = genai.Client(api_key=GEMINI_TTS_API_KEY)
+    response = client.models.generate_content(
+        model='gemini-2.5-flash-preview-tts',
+        contents=text,
+        config=gtypes.GenerateContentConfig(
+            response_modalities=['AUDIO'],
+            speech_config=gtypes.SpeechConfig(
+                voice_config=gtypes.VoiceConfig(
+                    prebuilt_voice_config=gtypes.PrebuiltVoiceConfig(
+                        voice_name=voice_name,
+                    )
+                )
+            ),
+        ),
+    )
+    pcm_data = response.candidates[0].content.parts[0].inline_data.data
+    # Convert PCM to WAV
+    buf = io.BytesIO()
+    with wave.open(buf, 'wb') as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(24000)
+        wf.writeframes(pcm_data)
+    return buf.getvalue()
+
 
 
 

@@ -29,6 +29,8 @@ const VoicePickerModal = ({ open, onClose, onSelect, actorGender, targetLanguage
   const [tab, setTab] = useState("edge");
   const [gcloudVoices, setGcloudVoices] = useState([]);
   const [gcloudLoading, setGcloudLoading] = useState(false);
+  const [geminiVoices, setGeminiVoices] = useState([]);
+  const [geminiLoading, setGeminiLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [genderFilter, setGenderFilter] = useState("ALL");
   const [langFilter, setLangFilter] = useState(targetLanguage || "");
@@ -47,11 +49,23 @@ const VoicePickerModal = ({ open, onClose, onSelect, actorGender, targetLanguage
 
   useEffect(() => { if (open && tab === "gcloud") fetchGcloudVoices(); }, [open, tab, fetchGcloudVoices]);
 
+  const fetchGeminiVoices = useCallback(async () => {
+    setGeminiLoading(true);
+    try {
+      const r = await axios.get(`${API}/gemini-voices`);
+      setGeminiVoices(r.data.voices || []);
+    } catch { setGeminiVoices([]); }
+    finally { setGeminiLoading(false); }
+  }, []);
+
+  useEffect(() => { if (open && tab === "gemini") fetchGeminiVoices(); }, [open, tab, fetchGeminiVoices]);
+
   const previewGcloudVoice = async (voiceName, text) => {
     if (playingVoice) { if (audioRef.current) audioRef.current.pause(); setPlayingVoice(null); return; }
     setPlayingVoice(voiceName);
     try {
-      const r = await axios.post(`${API}/gcloud-tts-preview`, {
+      const endpoint = tab === "gemini" ? `${API}/gemini-tts-preview` : `${API}/gcloud-tts-preview`;
+      const r = await axios.post(endpoint, {
         text: text || "This is a voice preview test.",
         voice_name: voiceName, language_code: voiceName.split("-").slice(0, 2).join("-"),
       }, { responseType: "blob", timeout: 15000 });
@@ -101,7 +115,11 @@ const VoicePickerModal = ({ open, onClose, onSelect, actorGender, targetLanguage
           <div className={`flex border-b ${d ? 'border-zinc-700' : 'border-black/10'}`}>
             <button onClick={() => setTab("edge")}
               className={`flex-1 py-2.5 text-xs font-bold uppercase tracking-wider transition-colors ${tab === "edge" ? (d ? 'text-white border-b-2 border-white' : 'text-zinc-950 border-b-2 border-zinc-950') : (d ? 'text-zinc-500 hover:text-zinc-300' : 'text-zinc-400 hover:text-zinc-700')}`}>
-              Edge TTS (Free)
+              Microsoft (Free)
+            </button>
+            <button onClick={() => setTab("gemini")}
+              className={`flex-1 py-2.5 text-xs font-bold uppercase tracking-wider transition-colors ${tab === "gemini" ? (d ? 'text-emerald-400 border-b-2 border-emerald-400' : 'text-emerald-600 border-b-2 border-emerald-600') : (d ? 'text-zinc-500 hover:text-zinc-300' : 'text-zinc-400 hover:text-zinc-700')}`}>
+              Gemini (Free)
             </button>
             <button onClick={() => setTab("gcloud")}
               className={`flex-1 py-2.5 text-xs font-bold uppercase tracking-wider transition-colors ${tab === "gcloud" ? (d ? 'text-cyan-400 border-b-2 border-cyan-400' : 'text-cyan-600 border-b-2 border-cyan-600') : (d ? 'text-zinc-500 hover:text-zinc-300' : 'text-zinc-400 hover:text-zinc-700')}`}>
@@ -110,18 +128,20 @@ const VoicePickerModal = ({ open, onClose, onSelect, actorGender, targetLanguage
           </div>
 
           {/* Filters */}
-          {tab === "gcloud" && (
+          {(tab === "gcloud" || tab === "gemini") && (
             <div className={`flex items-center gap-2 px-5 py-3 border-b ${d ? 'border-zinc-800' : 'border-black/5'}`}>
               <div className="relative flex-1">
                 <MagnifyingGlass className="w-3.5 h-3.5 text-zinc-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
                 <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search voice name..."
                   className={`w-full pl-8 pr-3 py-1.5 border rounded-sm text-xs outline-none ${d ? 'bg-zinc-800 border-zinc-700 text-white' : 'bg-zinc-50 border-black/10 text-zinc-950'}`} />
               </div>
-              <select value={langFilter} onChange={e => setLangFilter(e.target.value)}
-                className={`px-2 py-1.5 border rounded-sm text-xs outline-none ${d ? 'bg-zinc-800 border-zinc-700 text-white' : 'bg-zinc-50 border-black/10 text-zinc-950'}`}>
-                <option value="">All Languages</option>
-                {Object.entries(GCLOUD_LANG_MAP).map(([k, v]) => <option key={k} value={k}>{EDGE_VOICES[k]?.name || k.toUpperCase()}</option>)}
-              </select>
+              {tab === "gcloud" && (
+                <select value={langFilter} onChange={e => setLangFilter(e.target.value)}
+                  className={`px-2 py-1.5 border rounded-sm text-xs outline-none ${d ? 'bg-zinc-800 border-zinc-700 text-white' : 'bg-zinc-50 border-black/10 text-zinc-950'}`}>
+                  <option value="">All Languages</option>
+                  {Object.entries(GCLOUD_LANG_MAP).map(([k]) => <option key={k} value={k}>{EDGE_VOICES[k]?.name || k.toUpperCase()}</option>)}
+                </select>
+              )}
               <div className="flex gap-1">
                 {["ALL", "MALE", "FEMALE"].map(g => (
                   <button key={g} onClick={() => setGenderFilter(g)}
@@ -161,6 +181,52 @@ const VoicePickerModal = ({ open, onClose, onSelect, actorGender, targetLanguage
                   </div>
                 ))}
               </div>
+            ) : tab === "gemini" ? (
+              geminiLoading ? (
+                <div className="flex items-center justify-center py-16">
+                  <div className="animate-spin w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full" />
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  <p className={`text-[10px] mb-3 ${d ? 'text-zinc-500' : 'text-zinc-400'}`}>
+                    {geminiVoices.length} Gemini AI voices. High quality, free tier. Click to select, hover to preview.
+                  </p>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {geminiVoices.filter(v => genderFilter === "ALL" || v.gender === genderFilter)
+                      .filter(v => !search || v.name.toLowerCase().includes(search.toLowerCase()))
+                      .map(voice => {
+                      const isMale = voice.gender === "MALE";
+                      const isPlaying = playingVoice === voice.name;
+                      return (
+                        <div key={voice.name} data-testid={`gemini-voice-${voice.name}`}
+                          className={`flex items-center gap-2 px-3 py-2.5 rounded-sm border transition-all group cursor-pointer ${
+                            d ? 'bg-zinc-800 border-zinc-700 hover:border-emerald-600' : 'bg-white border-black/10 hover:border-emerald-400'
+                          }`}
+                          onClick={() => onSelect({
+                            provider: "gemini",
+                            voiceName: voice.name,
+                            voiceLabel: `${voice.name} (${voice.style})`,
+                            gender: isMale ? "male" : "female",
+                          })}>
+                          {isMale ? <GenderMale className="w-3.5 h-3.5 text-blue-500" weight="bold" /> : <GenderFemale className="w-3.5 h-3.5 text-pink-500" weight="bold" />}
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-xs font-semibold ${d ? 'text-zinc-200' : 'text-zinc-700'}`}>{voice.name}</p>
+                            <p className="text-[9px] text-zinc-500">{voice.style} - {voice.gender}</p>
+                          </div>
+                          <button
+                            onClick={e => { e.stopPropagation(); isPlaying ? stopPreview() : previewGcloudVoice(voice.name, "This is a voice preview."); }}
+                            className={`p-1.5 rounded-sm opacity-0 group-hover:opacity-100 transition-all ${
+                              isPlaying ? 'bg-red-100 text-red-600 opacity-100' : (d ? 'bg-zinc-700 text-white hover:bg-zinc-600' : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200')
+                            }`}>
+                            {isPlaying ? <Stop className="w-3 h-3" weight="fill" /> : <Play className="w-3 h-3" weight="fill" />}
+                          </button>
+                          <span className="text-[9px] text-emerald-600 font-bold">FREE</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )
             ) : gcloudLoading ? (
               <div className="flex items-center justify-center py-16">
                 <div className="animate-spin w-8 h-8 border-2 border-cyan-500 border-t-transparent rounded-full" />
@@ -191,7 +257,7 @@ const VoicePickerModal = ({ open, onClose, onSelect, actorGender, targetLanguage
                         <p className="text-[9px] text-zinc-500">{voice.language} - {voice.gender}</p>
                       </div>
                       <button
-                        onClick={e => { e.stopPropagation(); isPlaying ? stopPreview() : previewEdgeVoice(voice.name, "This is a voice preview."); }}
+                        onClick={e => { e.stopPropagation(); isPlaying ? stopPreview() : previewGcloudVoice(voice.name, "This is a voice preview."); }}
                         className={`p-1.5 rounded-sm opacity-0 group-hover:opacity-100 transition-all ${
                           isPlaying ? 'bg-red-100 text-red-600 opacity-100' : (d ? 'bg-zinc-700 text-white hover:bg-zinc-600' : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200')
                         }`}>
@@ -208,7 +274,7 @@ const VoicePickerModal = ({ open, onClose, onSelect, actorGender, targetLanguage
           {/* Footer */}
           <div className={`px-5 py-3 border-t flex items-center justify-between ${d ? 'border-zinc-700' : 'border-black/10'}`}>
             <p className="text-[10px] text-zinc-500">
-              {tab === "edge" ? "Edge TTS is free and unlimited" : "Google Cloud charges ~$0.000004/character"}
+              {tab === "edge" ? "Microsoft Edge TTS - free and unlimited" : tab === "gemini" ? "Gemini AI voices - free tier with rate limits" : "Google Cloud - ~$0.000004/character"}
             </p>
             <button onClick={onClose} className={`px-4 py-1.5 text-xs font-semibold rounded-sm transition-colors ${d ? 'bg-zinc-800 text-white hover:bg-zinc-700' : 'bg-zinc-100 text-zinc-950 hover:bg-zinc-200'}`}>
               Cancel

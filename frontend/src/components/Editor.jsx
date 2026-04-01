@@ -251,17 +251,20 @@ const Editor = () => {
     const actorId = voicePickerActorId;
     if (!actorId) return;
     if (voiceData.provider === "edge") {
-      await updateActor(actorId, "voice", voiceData.voiceId);
-      // Clear gcloud settings
-      const updated = actors.map(a => a.id === actorId ? { ...a, voice: voiceData.voiceId, tts_provider: "edge", gcloud_voice: null, gcloud_language: null } : a);
+      const updated = actors.map(a => a.id === actorId ? { ...a, voice: voiceData.voiceId, tts_provider: "edge", gcloud_voice: null, gcloud_language: null, gemini_voice: null } : a);
       setActors(updated);
       try { await axios.patch(`${API}/projects/${projectId}`, { actors: updated }, { headers: { Authorization: `Bearer ${token}` } }); } catch (err) { console.warn("Save failed:", err.message); }
       toast.success(`Voice: ${voiceData.voiceName}`);
     } else if (voiceData.provider === "gcloud") {
-      const updated = actors.map(a => a.id === actorId ? { ...a, tts_provider: "gcloud", gcloud_voice: voiceData.voiceName, gcloud_language: voiceData.languageCode } : a);
+      const updated = actors.map(a => a.id === actorId ? { ...a, tts_provider: "gcloud", gcloud_voice: voiceData.voiceName, gcloud_language: voiceData.languageCode, gemini_voice: null } : a);
       setActors(updated);
       try { await axios.patch(`${API}/projects/${projectId}`, { actors: updated }, { headers: { Authorization: `Bearer ${token}` } }); } catch (err) { console.warn("Save failed:", err.message); }
       toast.success(`Google Voice: ${voiceData.voiceName}`);
+    } else if (voiceData.provider === "gemini") {
+      const updated = actors.map(a => a.id === actorId ? { ...a, tts_provider: "gemini", gemini_voice: voiceData.voiceName, gcloud_voice: null, gcloud_language: null } : a);
+      setActors(updated);
+      try { await axios.patch(`${API}/projects/${projectId}`, { actors: updated }, { headers: { Authorization: `Bearer ${token}` } }); } catch (err) { console.warn("Save failed:", err.message); }
+      toast.success(`Gemini Voice: ${voiceData.voiceLabel}`);
     }
   };
 
@@ -863,6 +866,11 @@ const Editor = () => {
                                 <span className="flex items-center gap-1">
                                   <span className={`text-[8px] font-bold px-1 py-0.5 rounded ${d?'bg-cyan-900/40 text-cyan-300':'bg-cyan-50 text-cyan-600'}`}>GC</span>
                                   {actor.gcloud_voice?.split('-').slice(2).join(' ') || 'Google Voice'}
+                                </span>
+                              ) : actor.tts_provider === 'gemini' ? (
+                                <span className="flex items-center gap-1">
+                                  <span className={`text-[8px] font-bold px-1 py-0.5 rounded ${d?'bg-emerald-900/40 text-emerald-300':'bg-emerald-50 text-emerald-600'}`}>GM</span>
+                                  {actor.gemini_voice || 'Gemini Voice'}
                                 </span>
                               ) : (
                                 (isMale ? maleVoices : femaleVoices).find(v => v.id === actor.voice)?.name || actor.voice || 'Select voice'

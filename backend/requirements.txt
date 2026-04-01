@@ -10,3 +10,4 @@ yt-dlp==2026.3.17
 python-multipart==0.0.22
 requests==2.32.5
 emergentintegrations==0.1.0
+google-genai==1.69.0
