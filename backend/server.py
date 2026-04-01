@@ -1193,9 +1193,14 @@ async def _generate_audio_sync(project_id, project, segments, speed, user):
                             audio_seg = fit_audio_to_duration(audio_seg, seg_duration_ms)
                         return (seg, audio_seg)
                     except Exception as e:
-                        logger.warning(f"Gemini TTS attempt {attempt+1}/3 failed: {e}")
-                        if attempt < 2:
-                            await asyncio.sleep(1)
+                        err_str = str(e)
+                        logger.warning(f"Gemini TTS attempt {attempt+1}/3 failed: {err_str[:150]}")
+                        if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
+                            wait_time = 20 * (attempt + 1)
+                            logger.info(f"Gemini rate limited, waiting {wait_time}s before retry...")
+                            await asyncio.sleep(wait_time)
+                        elif attempt < 2:
+                            await asyncio.sleep(2)
                 logger.error(f"Gemini TTS failed after 3 attempts, falling back to Edge TTS")
 
             # Edge TTS (default or fallback)
@@ -1226,12 +1231,28 @@ async def _generate_audio_sync(project_id, project, segments, speed, user):
         tts_pairs = []
         import time as _time
         queue_status[project_id] = {"status": "processing", "step": "generating_audio", "progress": 0, "total": len(tts_segments), "started_at": _time.time()}
-        for i in range(0, len(tts_segments), TTS_BATCH_SIZE):
-            batch = tts_segments[i:i + TTS_BATCH_SIZE]
-            results = await asyncio.gather(*[generate_single_tts(seg) for seg in batch])
-            tts_pairs.extend([r for r in results if r is not None])
-            queue_status[project_id]["progress"] = min(i + TTS_BATCH_SIZE, len(tts_segments))
-            logger.info(f"TTS batch {i // TTS_BATCH_SIZE + 1}: {len([r for r in results if r])} generated ({queue_status[project_id]['progress']}/{len(tts_segments)})")
+        
+        # Check if any actor uses Gemini TTS
+        has_gemini = any(actor_provider_map.get(seg.get("speaker"), "edge") == "gemini" for seg in tts_segments)
+        
+        if has_gemini:
+            # Process one at a time with delay to avoid Gemini rate limits (10/min)
+            for idx, seg in enumerate(tts_segments):
+                result = await generate_single_tts(seg)
+                if result is not None:
+                    tts_pairs.append(result)
+                queue_status[project_id]["progress"] = idx + 1
+                logger.info(f"TTS segment {idx+1}/{len(tts_segments)} done")
+                if idx < len(tts_segments) - 1 and actor_provider_map.get(seg.get("speaker"), "edge") == "gemini":
+                    await asyncio.sleep(7)
+        else:
+            # Standard batch processing for Edge/Google Cloud
+            for i in range(0, len(tts_segments), TTS_BATCH_SIZE):
+                batch = tts_segments[i:i + TTS_BATCH_SIZE]
+                results = await asyncio.gather(*[generate_single_tts(seg) for seg in batch])
+                tts_pairs.extend([r for r in results if r is not None])
+                queue_status[project_id]["progress"] = min(i + TTS_BATCH_SIZE, len(tts_segments))
+                logger.info(f"TTS batch {i // TTS_BATCH_SIZE + 1}: {len([r for r in results if r])} generated ({queue_status[project_id]['progress']}/{len(tts_segments)})")
 
         # Combine custom + TTS, sort by segment order
         all_pairs = custom_pairs + tts_pairs
@@ -1760,6 +1781,8 @@ async def synthesize_gemini_tts(text: str, voice_name: str) -> bytes:
             ),
         ),
     )
+    if not response.candidates or not response.candidates[0].content or not response.candidates[0].content.parts:
+        raise Exception("Gemini TTS returned empty response")
     pcm_data = response.candidates[0].content.parts[0].inline_data.data
     # Convert PCM to WAV
     buf = io.BytesIO()
