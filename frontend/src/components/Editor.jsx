@@ -48,6 +48,7 @@ const Editor = () => {
   const [showShareModal, setShowShareModal] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [speakerFilter, setSpeakerFilter] = useState(null);
   const [saveStatus, setSaveStatus] = useState("saved");
   const [selectedSegments, setSelectedSegments] = useState(new Set());
   const [editingTitle, setEditingTitle] = useState(false);
@@ -417,12 +418,14 @@ const Editor = () => {
     }
   }, []);
 
-  const filteredSegments = searchQuery
-    ? segments.map((seg, idx) => ({ ...seg, _origIdx: idx })).filter(seg =>
-        (seg.original || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (seg.translated || '').toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    : segments.map((seg, idx) => ({ ...seg, _origIdx: idx }));
+  const filteredSegments = segments.map((seg, idx) => ({ ...seg, _origIdx: idx })).filter(seg => {
+    if (speakerFilter && seg.speaker !== speakerFilter) return false;
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      if (!(seg.original || '').toLowerCase().includes(q) && !(seg.translated || '').toLowerCase().includes(q)) return false;
+    }
+    return true;
+  });
 
   const autoProcess = async () => {
     setProcessingMsg("Auto-processing: Detect → Translate → Audio...");
@@ -845,12 +848,18 @@ const Editor = () => {
                         </div>
                       </div>
 
-                      <div className={`rounded-sm px-2 py-1.5 mb-2 border ${
-                        isMale ? (d ? 'bg-blue-900/20 border-blue-800/30' : 'bg-blue-50 border-blue-200') : (d ? 'bg-pink-900/20 border-pink-800/30' : 'bg-pink-50 border-pink-200')
-                      }`}>
+                      <div className={`rounded-sm px-2 py-1.5 mb-2 border cursor-pointer transition-all ${
+                        speakerFilter === actor.id
+                          ? (d ? 'bg-emerald-900/30 border-emerald-600 ring-1 ring-emerald-500' : 'bg-emerald-50 border-emerald-400 ring-1 ring-emerald-400')
+                          : isMale ? (d ? 'bg-blue-900/20 border-blue-800/30 hover:border-blue-600' : 'bg-blue-50 border-blue-200 hover:border-blue-400') : (d ? 'bg-pink-900/20 border-pink-800/30 hover:border-pink-600' : 'bg-pink-50 border-pink-200 hover:border-pink-400')
+                      }`} onClick={() => setSpeakerFilter(speakerFilter === actor.id ? null : actor.id)}
+                        data-testid={`actor-filter-lines-${actor.id}`}
+                        title={speakerFilter === actor.id ? "Click to show all lines" : `Click to show only ${actor.label || actor.id} lines`}>
                         <div className="flex items-center justify-between">
-                          <span className={`text-[9px] font-semibold ${isMale ? (d?'text-blue-300':'text-blue-600') : (d?'text-pink-300':'text-pink-600')}`}>
-                            {segCount} {segCount === 1 ? 'line' : 'lines'}
+                          <span className={`text-[9px] font-semibold ${
+                            speakerFilter === actor.id ? (d ? 'text-emerald-300' : 'text-emerald-600') : isMale ? (d?'text-blue-300':'text-blue-600') : (d?'text-pink-300':'text-pink-600')
+                          }`}>
+                            {speakerFilter === actor.id ? '✓ ' : ''}{segCount} {segCount === 1 ? 'line' : 'lines'}
                           </span>
                           <span className={`text-[10px] font-bold ${isMale ? (d?'text-blue-200':'text-blue-700') : (d?'text-pink-200':'text-pink-700')}`}>
                             {totalLen < 60 ? `${totalLen.toFixed(1)}s` : `${Math.floor(totalLen / 60)}m ${Math.round(totalLen % 60)}s`}
@@ -1033,7 +1042,15 @@ const Editor = () => {
                 </button>
               )}
               <span className="text-[10px] text-zinc-400 ml-auto">
-                {searchQuery ? `${filteredSegments.length} of ${segments.length}` : `${segments.length} segments`}
+                {speakerFilter
+                  ? <span className="flex items-center gap-1.5">
+                      <span className={`text-emerald-600 font-bold`}>{filteredSegments.length} of {segments.length} lines</span>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded-sm cursor-pointer ${d ? 'bg-emerald-900/40 text-emerald-400' : 'bg-emerald-50 text-emerald-700'}`}>
+                        {actors.find(a => a.id === speakerFilter)?.label || speakerFilter}
+                      </span>
+                      <button onClick={() => setSpeakerFilter(null)} className="text-red-400 hover:text-red-600 text-[10px] font-bold" data-testid="clear-speaker-filter">✕ Clear</button>
+                    </span>
+                  : searchQuery ? `${filteredSegments.length} of ${segments.length}` : `${segments.length} segments`}
               </span>
             </div>
           )}
