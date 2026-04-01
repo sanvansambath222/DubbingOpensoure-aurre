@@ -116,7 +116,7 @@ const Editor = () => {
   const transcribe = async () => {
     setProcessingMsg("Detecting speakers & extracting text...");
     try {
-      const r = await axios.post(`${API}/projects/${projectId}/transcribe-segments`, {}, { headers: { Authorization: `Bearer ${token}` } });
+      const r = await axios.post(`${API}/projects/${projectId}/transcribe-segments`, {}, { headers: { Authorization: `Bearer ${token}` }, timeout: 900000 });
       setProject(r.data); setSegments(r.data.segments || []); setActors(r.data.actors || []);
       toast.success("Speakers detected!");
       sendNotification("KhmerDub", "Speaker detection complete!");
@@ -129,7 +129,7 @@ const Editor = () => {
     setProcessingMsg(`Translating to ${langName}...`);
     startProgressPoll();
     try {
-      const r = await axios.post(`${API}/projects/${projectId}/translate-segments?target_language=${targetLanguage}`, {}, { headers: { Authorization: `Bearer ${token}` } });
+      const r = await axios.post(`${API}/projects/${projectId}/translate-segments?target_language=${targetLanguage}`, {}, { headers: { Authorization: `Bearer ${token}` }, timeout: 900000 });
       setProject(r.data); setSegments(r.data.segments || []);
       toast.success(`Translation to ${langName} complete!`);
       sendNotification("KhmerDub", `Translation to ${langName} complete!`);
@@ -141,7 +141,38 @@ const Editor = () => {
     setProcessingMsg("Generating voices...");
     startProgressPoll();
     try {
-      const r = await axios.post(`${API}/projects/${projectId}/generate-audio-segments?speed=${ttsSpeed}`, {}, { headers: { Authorization: `Bearer ${token}` }, timeout: GENERATE_TIMEOUT_MS });
+      const r = await axios.post(`${API}/projects/${projectId}/generate-audio-segments?speed=${ttsSpeed}`, {}, { headers: { Authorization: `Bearer ${token}` }, timeout: 900000 });
+      if (r.data.status === "processing") {
+        // Long video - background processing, poll until done
+        toast.info(r.data.message || "Processing in background...");
+        const pollUntilDone = async () => {
+          for (let i = 0; i < 600; i++) {
+            await new Promise(res => setTimeout(res, 3000));
+            try {
+              const status = await axios.get(`${API}/projects/${projectId}/queue-status`, { headers: { Authorization: `Bearer ${token}` } });
+              setProgressInfo(status.data);
+              if (status.data?.status === "done" || status.data?.step === "done") break;
+              // Check if project status changed
+              const proj = await axios.get(`${API}/projects/${projectId}`, { headers: { Authorization: `Bearer ${token}` } });
+              if (proj.data.status === "audio_ready" || proj.data.status === "error") {
+                setProject(proj.data);
+                if (proj.data.segments) setSegments(proj.data.segments);
+                if (proj.data.dubbed_audio_path) loadFile(proj.data.dubbed_audio_path, 'audio');
+                if (proj.data.status === "audio_ready") {
+                  toast.success("Audio generated!");
+                  sendNotification("KhmerDub", "Audio generation complete!");
+                } else {
+                  toast.error("Audio generation failed");
+                }
+                break;
+              }
+            } catch (err) { console.warn("Poll error:", err.message); }
+          }
+          setProcessingMsg(null); stopProgressPoll();
+        };
+        pollUntilDone();
+        return;
+      }
       setProject(r.data);
       if (r.data.dubbed_audio_path) loadFile(r.data.dubbed_audio_path, 'audio');
       toast.success("Audio generated!");
@@ -153,7 +184,7 @@ const Editor = () => {
   const generateVideo = async () => {
     setProcessingMsg(burnSubs ? "Generating video with Khmer subtitles..." : "Generating dubbed video...");
     try {
-      const r = await axios.post(`${API}/projects/${projectId}/generate-video?burn_subtitles=${burnSubs}`, {}, { headers: { Authorization: `Bearer ${token}` } });
+      const r = await axios.post(`${API}/projects/${projectId}/generate-video?burn_subtitles=${burnSubs}`, {}, { headers: { Authorization: `Bearer ${token}` }, timeout: 900000 });
       setProject(r.data);
       if (r.data.dubbed_video_path) loadFile(r.data.dubbed_video_path, 'video');
       toast.success("Video ready!");

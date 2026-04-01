@@ -24,6 +24,7 @@ Khmer, Thai, Vietnamese, Korean, Japanese, English, Chinese, Indonesian, Hindi, 
 - [x] 12-hour auto-cleanup for trial user storage
 - [x] Delete project with full file cleanup (videos, audio, custom voices)
 - [x] Clear All projects button with confirmation dialog
+- [x] Long video support: background processing, MP3 output, FFmpeg atempo, TTS retry
 - [x] Deployment files (Dockerfile, railway.toml)
 - [x] Code refactoring: App.js split into 6 components (44 lines from 1784)
 - [x] Backend refactoring: extracted 10+ helper functions from large handlers

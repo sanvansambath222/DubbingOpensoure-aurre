@@ -312,17 +312,44 @@ def mix_audio_timeline(segment_audio_pairs: list, segments: list, total_duration
 
 
 def fit_audio_to_duration(audio, target_duration_ms: int):
-    """Speed up audio to fit within target duration. Max 2x speed."""
-    from pydub import AudioSegment
+    """Speed up audio to fit within target duration using FFmpeg atempo (fast)."""
     if target_duration_ms <= 0 or len(audio) <= target_duration_ms:
         return audio
     speed_factor = len(audio) / target_duration_ms
-    if speed_factor > 2.0:
-        speed_factor = 2.0
-    try:
-        return audio.speedup(playback_speed=speed_factor)
-    except Exception:
+    if speed_factor > 2.5:
+        speed_factor = 2.5
+    if speed_factor < 1.05:
         return audio
+    # Use FFmpeg atempo for fast processing instead of pydub.speedup()
+    try:
+        import io
+        from pydub import AudioSegment
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp_in:
+            audio.export(tmp_in.name, format="wav")
+            in_path = tmp_in.name
+        out_path = in_path.replace(".wav", "_fast.wav")
+        # Build atempo filter chain (atempo supports 0.5-2.0 range, chain for higher)
+        filters = []
+        remaining = speed_factor
+        while remaining > 2.0:
+            filters.append("atempo=2.0")
+            remaining /= 2.0
+        filters.append(f"atempo={remaining:.4f}")
+        filter_str = ",".join(filters)
+        cmd = ["ffmpeg", "-y", "-i", in_path, "-af", filter_str, "-ac", "1", "-ar", "24000", out_path]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        if result.returncode == 0 and os.path.exists(out_path):
+            fitted = AudioSegment.from_file(out_path)
+            os.unlink(in_path)
+            os.unlink(out_path)
+            return fitted
+        os.unlink(in_path)
+        if os.path.exists(out_path):
+            os.unlink(out_path)
+        return audio[:target_duration_ms]
+    except Exception as e:
+        logger.warning(f"FFmpeg atempo failed, truncating: {e}")
+        return audio[:target_duration_ms]
 
 
 # --- Constants ---
@@ -1043,7 +1070,6 @@ async def preview_tts(project_id: str, req: PreviewRequest, authorization: str =
 # Generate timestamp-aligned audio
 @api_router.post("/projects/{project_id}/generate-audio-segments")
 async def generate_audio_segments(project_id: str, speed: int = Query(2), authorization: str = Header(None)):
-    import requests as req
     import time
     import io
     from pydub import AudioSegment
@@ -1055,6 +1081,30 @@ async def generate_audio_segments(project_id: str, speed: int = Query(2), author
     segments = project.get("segments", [])
     if not segments:
         raise HTTPException(status_code=400, detail="No segments")
+
+    # For long videos (>100 segments), run in background
+    if len(segments) > 100:
+        asyncio.create_task(_generate_audio_background(project_id, project, segments, speed, user))
+        return {"status": "processing", "message": f"Generating audio for {len(segments)} segments in background. Check progress bar."}
+
+    return await _generate_audio_sync(project_id, project, segments, speed, user)
+
+async def _generate_audio_background(project_id, project, segments, speed, user):
+    """Background audio generation for long videos."""
+    try:
+        await _generate_audio_sync(project_id, project, segments, speed, user)
+    except Exception as e:
+        logger.error(f"Background audio generation failed: {e}")
+        await db.projects.update_one(
+            {"project_id": project_id},
+            {"$set": {"status": "error", "updated_at": datetime.now(timezone.utc).isoformat()}}
+        )
+
+async def _generate_audio_sync(project_id, project, segments, speed, user):
+    import io
+    from pydub import AudioSegment
+    import edge_tts
+
     await db.projects.update_one(
         {"project_id": project_id},
         {"$set": {"status": "generating_audio", "updated_at": datetime.now(timezone.utc).isoformat()}}
@@ -1086,24 +1136,29 @@ async def generate_audio_segments(project_id: str, speed: int = Query(2), author
                     break
             edge_voice = get_edge_voice(target_lang, seg_gender, actor_ai_voice_map.get(speaker))
             tts_path = os.path.join(tempfile.gettempdir(), f"tts_{uuid.uuid4().hex}.mp3")
-            try:
-                communicate = edge_tts.Communicate(seg["translated"], voice=edge_voice, rate=f"+{speed}%" if speed >= 0 else f"{speed}%")
-                await communicate.save(tts_path)
-                audio_seg = AudioSegment.from_file(tts_path)
-                os.unlink(tts_path)
-                # Auto-fit TTS to segment duration
-                seg_duration_ms = int((seg.get("end", 0) - seg.get("start", 0)) * 1000)
-                if seg_duration_ms > 0:
-                    audio_seg = fit_audio_to_duration(audio_seg, seg_duration_ms)
-                return (seg, audio_seg)
-            except Exception as e:
-                logger.warning(f"Edge TTS failed for segment: {e}")
-                if os.path.exists(tts_path):
-                    try:
-                        os.unlink(tts_path)
-                    except OSError:
-                        pass
-                return None
+            # Retry up to 3 times for Edge TTS
+            for attempt in range(3):
+                try:
+                    communicate = edge_tts.Communicate(seg["translated"], voice=edge_voice, rate=f"+{speed}%" if speed >= 0 else f"{speed}%")
+                    await communicate.save(tts_path)
+                    audio_seg = AudioSegment.from_file(tts_path)
+                    os.unlink(tts_path)
+                    # Auto-fit TTS to segment duration
+                    seg_duration_ms = int((seg.get("end", 0) - seg.get("start", 0)) * 1000)
+                    if seg_duration_ms > 0:
+                        audio_seg = fit_audio_to_duration(audio_seg, seg_duration_ms)
+                    return (seg, audio_seg)
+                except Exception as e:
+                    logger.warning(f"Edge TTS attempt {attempt+1}/3 failed: {e}")
+                    if os.path.exists(tts_path):
+                        try:
+                            os.unlink(tts_path)
+                        except OSError:
+                            pass
+                    if attempt < 2:
+                        await asyncio.sleep(1)
+            logger.error(f"Edge TTS failed after 3 attempts for segment {seg.get('id')}")
+            return None
 
         tts_pairs = []
         import time as _time
@@ -1124,12 +1179,21 @@ async def generate_audio_segments(project_id: str, speed: int = Query(2), author
 
         combined = mix_audio_timeline(segment_audio_pairs, segments, total_duration_ms, has_timestamps)
 
+        # Export as MP3 for long videos (WAV would be too large)
         output = io.BytesIO()
-        combined.export(output, format="wav")
+        if total_duration_ms > 300000:  # > 5 min → use MP3
+            combined.export(output, format="mp3", bitrate="192k")
+            audio_ext = "mp3"
+            content_type = "audio/mpeg"
+        else:
+            combined.export(output, format="wav")
+            audio_ext = "wav"
+            content_type = "audio/wav"
         audio_bytes = output.getvalue()
+        logger.info(f"Audio output: {len(audio_bytes) / 1024 / 1024:.1f}MB ({audio_ext})")
 
-        path = f"{APP_NAME}/audio/{user.user_id}/{project_id}/dubbed_{uuid.uuid4().hex}.wav"
-        result = put_object(path, audio_bytes, "audio/wav")
+        path = f"{APP_NAME}/audio/{user.user_id}/{project_id}/dubbed_{uuid.uuid4().hex}.{audio_ext}"
+        result = put_object(path, audio_bytes, content_type)
         
         await db.projects.update_one(
             {"project_id": project_id},
