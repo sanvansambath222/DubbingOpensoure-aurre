@@ -20,21 +20,29 @@ Khmer, Thai, Vietnamese, Korean, Japanese, English, Chinese, Indonesian, Hindi, 
 - [x] Real-time progress bar (segments done, %, elapsed, ETA)
 - [x] Output language selector (20 languages in dropdown)
 - [x] Code quality refactor (extracted helpers, sessionStorage, named constants, no hardcoded secrets)
+- [x] YouTube voice extraction via yt-dlp (with Node.js JS runtime)
+- [x] Auto-fit audio (FFmpeg atempo) for both TTS and custom uploaded voices
+- [x] 12-hour auto-cleanup for trial user storage
+- [x] Deployment files (Dockerfile, railway.toml)
 
 ## Code Architecture (Post-Refactor)
-- **Backend helpers**: `merge_whisper_segments()`, `build_actors_from_segments()`, `apply_speaker_detections()`, `apply_fallback_speakers()`, `get_media_duration_safe()`, `separate_custom_and_tts_segments()`, `mix_audio_timeline()`
+- **Backend helpers**: `merge_whisper_segments()`, `build_actors_from_segments()`, `apply_speaker_detections()`, `apply_fallback_speakers()`, `get_media_duration_safe()`, `separate_custom_and_tts_segments()`, `mix_audio_timeline()`, `fit_audio_to_duration()`
 - **Constants**: `TTS_BATCH_SIZE`, `TRANSLATE_CHUNK_SIZE`, `POLL_INTERVAL_S`
 - **Auth tokens**: sessionStorage (not localStorage)
 - **Test files**: Use env vars via conftest.py fixtures
+- **yt-dlp config**: js_runtimes={'node': {}}, remote_components={'ejs:github': {}}
 
 ## Backlog
+### P1
+- [ ] Split App.js into component files (Editor, Player, ActorCard, ProjectList)
+
 ### P2
+- [ ] Voice Library (browse & preview voices)
 - [ ] AI voice cloning
 - [ ] Auto lip sync
 - [ ] Drag to adjust timing
 - [ ] Export different video quality
 - [ ] Mobile friendly layout
-- [ ] Split App.js into component files
 
 ### P3
 - [ ] Team workspace
