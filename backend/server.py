@@ -265,7 +265,8 @@ def get_media_duration_safe(project: dict) -> int:
 
 
 def separate_custom_and_tts_segments(segments: list, actor_voice_map: dict) -> tuple:
-    """Separate segments into custom audio pairs and TTS-needed segments."""
+    """Separate segments into custom audio pairs and TTS-needed segments.
+    Custom audio is auto-sped-up to fit segment duration."""
     import io
     from pydub import AudioSegment
     custom_pairs = []
@@ -279,6 +280,10 @@ def separate_custom_and_tts_segments(segments: list, actor_voice_map: dict) -> t
                 audio_data, _ = get_object(custom_audio_path)
                 ext = custom_audio_path.split(".")[-1].lower() if "." in custom_audio_path else "wav"
                 audio_seg = AudioSegment.from_file(io.BytesIO(audio_data), format=ext)
+                # Auto-fit uploaded voice to segment duration
+                seg_duration_ms = int((seg.get("end", 0) - seg.get("start", 0)) * 1000)
+                if seg_duration_ms > 0:
+                    audio_seg = fit_audio_to_duration(audio_seg, seg_duration_ms)
                 custom_pairs.append((seg, audio_seg))
                 continue
             except Exception as e:
@@ -297,16 +302,27 @@ def mix_audio_timeline(segment_audio_pairs: list, segments: list, total_duration
         for seg, audio in segment_audio_pairs:
             start_ms = int(seg.get("start", 0) * 1000)
             seg_duration_ms = int((seg.get("end", 0) - seg.get("start", 0)) * 1000)
-            if seg_duration_ms > 0 and len(audio) > seg_duration_ms * 1.2:
-                speed_factor = len(audio) / seg_duration_ms
-                if speed_factor <= 2.0:
-                    audio = audio.speedup(playback_speed=min(speed_factor, 1.8))
+            audio = fit_audio_to_duration(audio, seg_duration_ms)
             combined = combined.overlay(audio, position=start_ms)
     else:
         combined = segment_audio_pairs[0][1]
         for _, audio in segment_audio_pairs[1:]:
             combined += audio
     return combined
+
+
+def fit_audio_to_duration(audio, target_duration_ms: int):
+    """Speed up audio to fit within target duration. Max 2x speed."""
+    from pydub import AudioSegment
+    if target_duration_ms <= 0 or len(audio) <= target_duration_ms:
+        return audio
+    speed_factor = len(audio) / target_duration_ms
+    if speed_factor > 2.0:
+        speed_factor = 2.0
+    try:
+        return audio.speedup(playback_speed=speed_factor)
+    except Exception:
+        return audio
 
 
 # --- Constants ---
@@ -1020,6 +1036,10 @@ async def generate_audio_segments(project_id: str, speed: int = Query(2), author
                 await communicate.save(tts_path)
                 audio_seg = AudioSegment.from_file(tts_path)
                 os.unlink(tts_path)
+                # Auto-fit TTS to segment duration
+                seg_duration_ms = int((seg.get("end", 0) - seg.get("start", 0)) * 1000)
+                if seg_duration_ms > 0:
+                    audio_seg = fit_audio_to_duration(audio_seg, seg_duration_ms)
                 return (seg, audio_seg)
             except Exception as e:
                 logger.warning(f"Edge TTS failed for segment: {e}")
