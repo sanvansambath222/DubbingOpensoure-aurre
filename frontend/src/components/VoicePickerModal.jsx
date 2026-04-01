@@ -142,14 +142,6 @@ const VoicePickerModal = ({ open, onClose, onSelect, actorGender, targetLanguage
                   {Object.entries(GCLOUD_LANG_MAP).map(([k]) => <option key={k} value={k}>{EDGE_VOICES[k]?.name || k.toUpperCase()}</option>)}
                 </select>
               )}
-              <div className="flex gap-1">
-                {["ALL", "MALE", "FEMALE"].map(g => (
-                  <button key={g} onClick={() => setGenderFilter(g)}
-                    className={`px-2 py-1 text-[10px] font-bold rounded-sm transition-colors ${genderFilter === g ? (d ? 'bg-zinc-700 text-white' : 'bg-zinc-950 text-white') : (d ? 'text-zinc-500 hover:text-white' : 'text-zinc-400 hover:text-zinc-950')}`}>
-                    {g === "ALL" ? "All" : g === "MALE" ? "Boy" : "Girl"}
-                  </button>
-                ))}
-              </div>
             </div>
           )}
 
