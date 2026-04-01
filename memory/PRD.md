@@ -1,72 +1,80 @@
-# Khmer Dubbing App - Product Requirements Document
+# Khmer Dubbing Hub - Product Requirements Document
 
-## Original Problem Statement
-Build Dubbing China to Khmer using python website following top trending design.
+## Problem Statement
+Build a video/audio dubbing platform (China to Khmer and multi-language) with AI-powered transcription, translation, TTS voices, and subtitle editing.
 
-## Supported Output Languages (20 - All Free Edge TTS)
-Khmer, Thai, Vietnamese, Korean, Japanese, English, Chinese, Indonesian, Hindi, Spanish, French, Filipino, German, Portuguese, Russian, Arabic, Italian, Malay, Lao, Burmese
+## Core Requirements
+- Video/Audio upload with Whisper transcription
+- Multi-language translation via GPT-5.2
+- Multiple TTS providers: Microsoft Edge TTS (free), Gemini TTS (free)
+- Subtitle/segment editor with per-line controls
+- Custom voice upload per detected actor
+- Fast parallel processing for long videos (1h+)
+- Background music preservation in dubbed output
 
-## Voice Models Available
-1. **Microsoft Edge TTS** - FREE, unlimited, 20+ languages, 2 voices/language
-2. **Gemini TTS** - FREE (rate limited), 30 AI voices, high quality, multi-language
-3. **Google Cloud TTS** - Premium (~$0.000004/char), 2000+ voices, 40+ languages
+## Architecture
+- Frontend: React (modularized components)
+- Backend: FastAPI (Python)
+- Database: MongoDB
+- Storage: Local file storage (/app/uploads)
+- Auth: Emergent Google OAuth
 
-## What's Been Implemented
-- [x] Google OAuth login, Project CRUD, upload
-- [x] Whisper transcription (auto-detect language)
-- [x] GPT-5.2 translation to ANY of 20 languages
-- [x] Edge TTS voices (male+female per language, free, original voice - no pitch)
-- [x] Gemini TTS integration (30 AI voices, free tier)
-- [x] Google Cloud TTS integration (2000+ premium voices)
-- [x] Voice Picker Modal (3 tabs: Microsoft/Gemini/Google Cloud with preview)
-- [x] Per-actor voice model selection (edge/gemini/gcloud per actor)
-- [x] Custom voice upload + recording
-- [x] Video dubbing, SRT, MP3, batch export, share link
-- [x] Parallel TTS (5 at a time), auto-process, queue
-- [x] Swiss Light/Dark Theme UI
-- [x] Compact actor cards with Boy/Girl distinction + voice model badges (GM/GC)
-- [x] Chunked translation (50 segments per batch for long videos)
-- [x] Real-time progress bar (segments done, %, elapsed, ETA)
-- [x] Output language selector (20 languages in dropdown)
-- [x] YouTube voice extraction via yt-dlp (with Node.js JS runtime)
-- [x] Auto-fit audio (FFmpeg atempo) for both TTS and custom uploaded voices
-- [x] Long video support: background processing, MP3 output, TTS retry (3x)
-- [x] 12-hour auto-cleanup for trial user storage
-- [x] Delete project with full file cleanup
-- [x] Clear All projects button
-- [x] Code refactoring: App.js split into 8 components
-- [x] Backend refactoring: extracted helpers, Gemini/GCloud TTS functions
-- [x] Deployment files (Dockerfile, railway.toml)
+## Components
+- LandingPage.jsx - Marketing/auth entry
+- Dashboard.jsx - Project listing
+- Editor.jsx - Main editor with segments, actors, voice controls
+- VoicePickerModal.jsx - Voice selection (Edge + Gemini tabs)
+- EditorWidgets.jsx - Reusable editor UI pieces
+- SharedProject.jsx - Public sharing view
+- AuthContext.jsx - Auth state management
 
-## Code Architecture
+## Completed Features
+- [x] Video/audio upload and processing
+- [x] Whisper transcription (via Emergent LLM key)
+- [x] GPT-5.2 translation (via Emergent LLM key)
+- [x] Microsoft Edge TTS (free, unlimited)
+- [x] Gemini TTS integration (free tier, rate-limited)
+- [x] Google Cloud TTS integration (removed from UI per user request, backend still available)
+- [x] Custom voice upload (file + YouTube yt-dlp extraction)
+- [x] Long video processing (1h+, MP3 format, 15min timeouts)
+- [x] Component refactoring (App.js split into 6 modules)
+- [x] Auto-cleanup job (12h project expiry)
+- [x] Clear All Projects functionality
+- [x] Deployment-ready configs (Dockerfile, railway.toml)
+- [x] Voice Mod controls for Gemini (Speed, Pitch, Emotion per actor)
+- [x] Per-line speed control (0.5x to 2.0x)
+- [x] Speaker reassignment dropdown per line
+- [x] Actor line filter (click line count to filter segments)
+- [x] Background music preservation (extract + mix with dubbed audio)
+- [x] Cross-origin Script error suppression
+- [x] Gemini TTS rate limit handling (sequential + exponential backoff)
+- [x] Bulk DB cleanup optimization (delete_many)
+- [x] Deployment health check passed
 
-### Frontend Components
-- `App.js` (44 lines) - Router only
-- `AuthContext.jsx` - Auth provider, theme toggle
-- `LandingPage.jsx` - Landing page
-- `Dashboard.jsx` - Project list with CRUD
-- `Editor.jsx` - Main editor
-- `SharedProject.jsx` - Public shared view
-- `EditorWidgets.jsx` - StepProgress, ProcessingOverlay
-- `VoicePickerModal.jsx` - 3-tab voice picker (Edge/Gemini/GCloud)
-- `constants.js` - API URL, timeouts, languages
+## Upcoming Tasks (P0)
+- [ ] Stripe payment integration (Free/Basic/Pro/Business)
+- [ ] Usage limits per plan (credits, video counts)
 
-### Backend Key Files
-- `server.py` - FastAPI with all endpoints
-- Key helpers: synthesize_gemini_tts(), synthesize_gcloud_tts(), download_youtube_audio(), assemble_dubbed_video(), fit_audio_to_duration()
+## Future Tasks
+- [ ] AI voice cloning & auto lip sync (P1)
+- [ ] Mobile-friendly layout (P2)
+- [ ] Export different video quality (P2)
+- [ ] Team workspace (P3)
+- [ ] Multi-language UI (P3)
+- [ ] Waveform timeline (P3)
 
-## Backlog
-### P1
-- [ ] Stripe payment for subscription plans (Free/Basic/Pro/Business)
+## 3rd Party Integrations
+- OpenAI GPT-5.2 (Translation) - Emergent LLM Key
+- OpenAI Whisper (Transcription) - Emergent LLM Key
+- Microsoft Edge TTS - Free / No Key
+- Google Gemini TTS (google-genai) - User API Key in .env
+- YouTube (yt-dlp) - Free / No Key
 
-### P2
-- [ ] AI voice cloning
-- [ ] Auto lip sync
-- [ ] Drag to adjust timing
-- [ ] Export different video quality
-- [ ] Mobile friendly layout
+## Known Issues
+- FFmpeg missing on container restart (reinstall via apt-get)
+- Gemini TTS rate limits on free tier (10 req/min) - mitigated with sequential processing
 
-### P3
-- [ ] Team workspace
-- [ ] Multi-language UI
-- [ ] Waveform timeline
+## DB Schema
+- projects: {project_id, user_id, title, target_language, status, segments[], actors[], file_type, original_file_path, dubbed_audio_path, dubbed_video_path, created_at}
+- users: {user_id, email, name, picture, created_at}
+- user_sessions: {session_token, user_id, expires_at, created_at}
