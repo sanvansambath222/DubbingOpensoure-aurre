@@ -47,13 +47,13 @@ const VoicePickerModal = ({ open, onClose, onSelect, actorGender, targetLanguage
 
   useEffect(() => { if (open && tab === "gcloud") fetchGcloudVoices(); }, [open, tab, fetchGcloudVoices]);
 
-  const previewEdgeVoice = async (voiceCode, text) => {
+  const previewGcloudVoice = async (voiceName, text) => {
     if (playingVoice) { if (audioRef.current) audioRef.current.pause(); setPlayingVoice(null); return; }
-    setPlayingVoice(voiceCode);
+    setPlayingVoice(voiceName);
     try {
       const r = await axios.post(`${API}/gcloud-tts-preview`, {
         text: text || "This is a voice preview test.",
-        voice_name: voiceCode, language_code: voiceCode.split("-").slice(0, 2).join("-"),
+        voice_name: voiceName, language_code: voiceName.split("-").slice(0, 2).join("-"),
       }, { responseType: "blob", timeout: 15000 });
       const url = URL.createObjectURL(r.data);
       const audio = new Audio(url);
