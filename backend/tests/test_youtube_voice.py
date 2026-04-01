@@ -8,7 +8,7 @@ import os
 import time
 
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
-AUTH_TOKEN = "test_session_001"
+AUTH_TOKEN = os.environ.get('TEST_AUTH_TOKEN', 'test_session_001')
 
 class TestProjectCRUD:
     """Basic project CRUD tests"""

@@ -1150,6 +1150,37 @@ class YoutubeExtractRequest(BaseModel):
     url: str
     actor_id: str = ""
 
+def download_youtube_audio(url: str) -> tuple:
+    """Download audio from YouTube URL. Returns (mp3_path, title, duration)."""
+    import yt_dlp
+    output_path = os.path.join(tempfile.gettempdir(), f"yt_{uuid.uuid4().hex}")
+    ydl_opts = {
+        'outtmpl': f'{output_path}.%(ext)s',
+        'format': 'bestaudio/best',
+        'postprocessors': [{
+            'key': 'FFmpegExtractAudio',
+            'preferredcodec': 'mp3',
+            'preferredquality': '192',
+        }],
+        'quiet': True,
+        'no_warnings': True,
+        'socket_timeout': 30,
+        'js_runtimes': {'node': {}},
+        'remote_components': {'ejs:github': {}},
+    }
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(url, download=True)
+    mp3_path = f"{output_path}.mp3"
+    if not os.path.exists(mp3_path):
+        raise FileNotFoundError("Audio extraction failed")
+    return mp3_path, info.get('title', 'YouTube Audio'), info.get('duration', 0), output_path
+
+def save_youtube_voice_to_actor(project_id: str, audio_data: bytes, actors: list, actor_id: str) -> str:
+    """Save YouTube audio to storage and optionally assign to an actor."""
+    storage_path = f"khmer-dubbing/{project_id}/yt_voice_{uuid.uuid4().hex[:8]}.mp3"
+    put_object(storage_path, audio_data, "audio/mpeg")
+    return storage_path
+
 @api_router.post("/projects/{project_id}/youtube-voice")
 async def extract_youtube_voice(project_id: str, req: YoutubeExtractRequest, authorization: str = Header(None)):
     import yt_dlp
@@ -1158,40 +1189,15 @@ async def extract_youtube_voice(project_id: str, req: YoutubeExtractRequest, aut
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    output_path = os.path.join(tempfile.gettempdir(), f"yt_{uuid.uuid4().hex}")
+    output_path = None
     try:
-        ydl_opts = {
-            'outtmpl': f'{output_path}.%(ext)s',
-            'format': 'bestaudio/best',
-            'postprocessors': [{
-                'key': 'FFmpegExtractAudio',
-                'preferredcodec': 'mp3',
-                'preferredquality': '192',
-            }],
-            'quiet': True,
-            'no_warnings': True,
-            'socket_timeout': 30,
-            'js_runtimes': {'node': {}},
-            'remote_components': {'ejs:github': {}},
-        }
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(req.url, download=True)
-            title = info.get('title', 'YouTube Audio')
-            duration = info.get('duration', 0)
-
-        mp3_path = f"{output_path}.mp3"
-        if not os.path.exists(mp3_path):
-            raise HTTPException(status_code=500, detail="Audio extraction failed")
-
+        mp3_path, title, duration, output_path = download_youtube_audio(req.url)
         with open(mp3_path, "rb") as f:
             audio_data = f.read()
         os.unlink(mp3_path)
 
-        # Save to storage
-        storage_path = f"khmer-dubbing/{project_id}/yt_voice_{uuid.uuid4().hex[:8]}.mp3"
-        put_object(storage_path, audio_data, "audio/mpeg")
+        storage_path = save_youtube_voice_to_actor(project_id, audio_data, project.get("actors", []), req.actor_id)
 
-        # If actor_id provided, assign to that actor
         if req.actor_id:
             actors = project.get("actors", [])
             for a in actors:
@@ -1215,14 +1221,45 @@ async def extract_youtube_voice(project_id: str, req: YoutubeExtractRequest, aut
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     finally:
-        for ext in ['.mp3', '.m4a', '.webm', '.opus', '.wav']:
-            p = f"{output_path}{ext}"
-            if os.path.exists(p):
-                try:
-                    os.unlink(p)
-                except OSError:
-                    pass
+        if output_path:
+            for ext in ['.mp3', '.m4a', '.webm', '.opus', '.wav']:
+                p = f"{output_path}{ext}"
+                if os.path.exists(p):
+                    try:
+                        os.unlink(p)
+                    except OSError:
+                        pass
 
+
+def assemble_dubbed_video(project: dict, burn_subs: bool) -> bytes:
+    """Assemble the final dubbed video from original video + dubbed audio.
+    Returns the output video bytes."""
+    video_data, _ = get_object(project["original_file_path"])
+    audio_data, _ = get_object(project["dubbed_audio_path"])
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        ext = project["original_filename"].split(".")[-1] if "." in project["original_filename"] else "mp4"
+        video_path = os.path.join(temp_dir, f"video.{ext}")
+        audio_path = os.path.join(temp_dir, "dubbed_audio.wav")
+        output_path = os.path.join(temp_dir, "output.mp4")
+
+        with open(video_path, "wb") as f:
+            f.write(video_data)
+        with open(audio_path, "wb") as f:
+            f.write(audio_data)
+
+        segments = project.get("segments", [])
+        if burn_subs and segments:
+            srt_content = generate_srt(segments)
+            srt_path = os.path.join(temp_dir, "subtitles.srt")
+            with open(srt_path, "w", encoding="utf-8") as f:
+                f.write(srt_content)
+            burn_subtitles_into_video(video_path, srt_path, audio_path, output_path)
+        else:
+            merge_audio_with_video(video_path, audio_path, output_path)
+
+        with open(output_path, "rb") as f:
+            return f.read()
 
 # Generate video with optional burned-in subtitles
 @api_router.post("/projects/{project_id}/generate-video")
@@ -1242,41 +1279,15 @@ async def generate_video(project_id: str, burn_subtitles: bool = Query(False), a
     )
 
     try:
-        video_data, _ = get_object(project["original_file_path"])
-        audio_data, _ = get_object(project["dubbed_audio_path"])
+        output_data = assemble_dubbed_video(project, burn_subtitles)
+        storage_path = f"{APP_NAME}/video/{user.user_id}/{project_id}/dubbed_{uuid.uuid4().hex}.mp4"
+        result = put_object(storage_path, output_data, "video/mp4")
 
-        with tempfile.TemporaryDirectory() as temp_dir:
-            ext = project["original_filename"].split(".")[-1] if "." in project["original_filename"] else "mp4"
-            video_path = os.path.join(temp_dir, f"video.{ext}")
-            audio_path = os.path.join(temp_dir, "dubbed_audio.wav")
-            output_path = os.path.join(temp_dir, "output.mp4")
-
-            with open(video_path, "wb") as f:
-                f.write(video_data)
-            with open(audio_path, "wb") as f:
-                f.write(audio_data)
-
-            segments = project.get("segments", [])
-            if burn_subtitles and segments:
-                srt_content = generate_srt(segments)
-                srt_path = os.path.join(temp_dir, "subtitles.srt")
-                with open(srt_path, "w", encoding="utf-8") as f:
-                    f.write(srt_content)
-                burn_subtitles_into_video(video_path, srt_path, audio_path, output_path)
-            else:
-                merge_audio_with_video(video_path, audio_path, output_path)
-
-            with open(output_path, "rb") as f:
-                output_data = f.read()
-
-            storage_path = f"{APP_NAME}/video/{user.user_id}/{project_id}/dubbed_{uuid.uuid4().hex}.mp4"
-            result = put_object(storage_path, output_data, "video/mp4")
-
-            await db.projects.update_one(
-                {"project_id": project_id},
-                {"$set": {"dubbed_video_path": result["path"], "status": "completed", "updated_at": datetime.now(timezone.utc).isoformat()}}
-            )
-            return await db.projects.find_one({"project_id": project_id}, {"_id": 0})
+        await db.projects.update_one(
+            {"project_id": project_id},
+            {"$set": {"dubbed_video_path": result["path"], "status": "completed", "updated_at": datetime.now(timezone.utc).isoformat()}}
+        )
+        return await db.projects.find_one({"project_id": project_id}, {"_id": 0})
 
     except Exception as e:
         logger.error(f"Video generation error: {str(e)}")
@@ -1482,7 +1493,8 @@ async def auto_process(project_id: str, speed: int = Query(2), target_language: 
     if not project.get("original_file_path"):
         raise HTTPException(status_code=400, detail="No file uploaded")
     
-    queue_status[project_id] = {"position": 0, "status": "processing", "step": "starting", "progress": 0, "total": 3, "started_at": __import__('time').time()}
+    import time as _time
+    queue_status[project_id] = {"position": 0, "status": "processing", "step": "starting", "progress": 0, "total": 3, "started_at": _time.time()}
     
     try:
         # Step 1: Transcribe (if not done)
