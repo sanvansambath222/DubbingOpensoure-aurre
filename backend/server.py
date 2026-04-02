@@ -337,7 +337,7 @@ def extract_background_audio(video_path: str) -> bytes:
     output_dir = _tf.mkdtemp(prefix="demucs_")
     try:
         cmd2 = [
-            "python3", "-m", "demucs",
+            "/root/.venv/bin/python3", "-m", "demucs",
             "--two-stems=vocals",
             "-n", "htdemucs",
             "--device", "cpu",
