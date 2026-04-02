@@ -204,7 +204,6 @@ tokenizers==0.22.2
 tomlkit==0.13.3
 torch==2.11.0+cpu
 torchaudio==2.11.0+cpu
-torchvision==0.26.0
 tqdm==4.67.3
 transformers==5.4.0
 treetable==0.2.6
