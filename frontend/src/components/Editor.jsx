@@ -465,15 +465,35 @@ const Editor = () => {
     setProcessingMsg("Auto-processing: Detect → Translate → Audio...");
     startProgressPoll();
     try {
-      const r = await axios.post(`${API}/projects/${projectId}/auto-process?speed=${ttsSpeed}&target_language=${targetLanguage}`, {}, {
+      const r = await axios.post(`${API}/projects/${projectId}/auto-process?speed=${ttsSpeed}&target_language=${targetLanguage}&bg_volume=${bgVolume}`, {}, {
         headers: { Authorization: `Bearer ${token}` }, timeout: 900000
       });
-      setProject(r.data);
-      if (r.data.segments) setSegments(r.data.segments);
-      if (r.data.actors) setActors(r.data.actors);
-      if (r.data.dubbed_audio_path) loadFile(r.data.dubbed_audio_path, 'audio');
-      toast.success("Auto-process complete!");
-      sendNotification("VoxiDub", "Auto-process complete!");
+      if (r.data.status === "processing") {
+        toast.info(r.data.message || "Processing in background...");
+        // Poll until done
+        for (let i = 0; i < 200; i++) {
+          await new Promise(res => setTimeout(res, 3000));
+          try {
+            const proj = await axios.get(`${API}/projects/${projectId}`, { headers: { Authorization: `Bearer ${token}` } });
+            if (proj.data.status === "audio_ready" || proj.data.status === "completed" || proj.data.status === "error") {
+              setProject(proj.data);
+              if (proj.data.segments) setSegments(proj.data.segments);
+              if (proj.data.actors) setActors(proj.data.actors);
+              if (proj.data.dubbed_audio_path) loadFile(proj.data.dubbed_audio_path, 'audio');
+              if (proj.data.status === "error") { toast.error("Audio generation failed"); }
+              else { toast.success("Auto-process complete!"); sendNotification("VoxiDub", "Auto-process complete!"); }
+              break;
+            }
+          } catch (err) { console.warn("Poll error:", err.message); }
+        }
+      } else {
+        setProject(r.data);
+        if (r.data.segments) setSegments(r.data.segments);
+        if (r.data.actors) setActors(r.data.actors);
+        if (r.data.dubbed_audio_path) loadFile(r.data.dubbed_audio_path, 'audio');
+        toast.success("Auto-process complete!");
+        sendNotification("VoxiDub", "Auto-process complete!");
+      }
     } catch (e) { toast.error(e.response?.data?.detail || "Auto-process failed"); }
     finally { setProcessingMsg(null); stopProgressPoll(); }
   };

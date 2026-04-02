@@ -1430,19 +1430,21 @@ async def generate_audio_segments(project_id: str, speed: int = Query(2), bg_vol
     if not segments:
         raise HTTPException(status_code=400, detail="No segments")
 
-    # For long videos (>100 segments), run in background
-    if len(segments) > 100:
+    # Run in background if: many segments OR Demucs needed (bg_volume > 0 adds ~2min)
+    if len(segments) > 100 or (bg_volume > 0 and project.get("file_type") == "video"):
         asyncio.create_task(_generate_audio_background(project_id, project, segments, speed, user, bg_volume))
         return {"status": "processing", "message": f"Generating audio for {len(segments)} segments in background. Check progress bar."}
 
     return await _generate_audio_sync(project_id, project, segments, speed, user, bg_volume)
 
 async def _generate_audio_background(project_id, project, segments, speed, user, bg_volume=0):
-    """Background audio generation for long videos."""
+    """Background audio generation for long videos or when Demucs is needed."""
     try:
         await _generate_audio_sync(project_id, project, segments, speed, user, bg_volume)
+        queue_status[project_id] = {"position": 0, "status": "done", "step": "done"}
     except Exception as e:
         logger.error(f"Background audio generation failed: {e}")
+        queue_status[project_id] = {"position": 0, "status": "error", "step": "error"}
         await db.projects.update_one(
             {"project_id": project_id},
             {"$set": {"status": "error", "updated_at": datetime.now(timezone.utc).isoformat()}}
@@ -2226,8 +2228,13 @@ async def auto_process(project_id: str, speed: int = Query(2), target_language: 
         if project.get("status") == "translated":
             queue_status[project_id].update({"step": "generating_audio", "progress": 2, "total": 3})
             segments = project.get("segments", [])
-            # For auto-process, always run sync (not background)
-            await _generate_audio_sync(project_id, project, segments, speed, user, bg_volume)
+            # If Demucs needed (bg_volume > 0 on video), run in background to avoid proxy timeout
+            if bg_volume > 0 and project.get("file_type") == "video":
+                asyncio.create_task(_generate_audio_background(project_id, project, segments, speed, user, bg_volume))
+                queue_status[project_id] = {"position": 0, "status": "processing", "step": "generating_audio"}
+                return {"status": "processing", "message": "Generating audio with background music extraction. This takes 2-3 minutes."}
+            else:
+                await _generate_audio_sync(project_id, project, segments, speed, user, bg_volume)
             project = await db.projects.find_one({"project_id": project_id}, {"_id": 0})
         
         queue_status[project_id] = {"position": 0, "status": "done"}
