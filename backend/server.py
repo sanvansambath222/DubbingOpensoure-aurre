@@ -16,6 +16,7 @@ import subprocess
 import tempfile
 import json
 import asyncio
+import io
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -318,10 +319,9 @@ def mix_audio_timeline(segment_audio_pairs: list, segments: list, total_duration
 
 
 def extract_background_audio(video_path: str) -> bytes:
-    """Extract audio from video, use Demucs AI to remove human voice, keep only background music/sfx."""
-    import tempfile as _tf
+    """Extract audio from video, use Demucs AI (Python API) to remove human voice, keep only background music/sfx."""
     
-    # Step 1: Extract audio from video
+    # Step 1: Extract audio from video as WAV (44100Hz stereo for Demucs)
     full_audio = video_path + ".full_audio.wav"
     cmd1 = [
         "ffmpeg", "-y", "-i", video_path,
@@ -333,55 +333,90 @@ def extract_background_audio(video_path: str) -> bytes:
         logger.warning(f"Failed to extract audio: {r1.stderr[:200]}")
         return None
 
-    # Step 2: Use Demucs AI to separate vocals from music
-    output_dir = _tf.mkdtemp(prefix="demucs_")
+    # Step 2: Use Demucs AI Python API for vocal separation
     try:
-        cmd2 = [
-            "/root/.venv/bin/python3", "-m", "demucs",
-            "--two-stems=vocals",
-            "-n", "htdemucs",
-            "--device", "cpu",
-            "-o", output_dir,
-            full_audio
-        ]
-        logger.info("Running Demucs AI vocal separation...")
-        r2 = subprocess.run(cmd2, capture_output=True, text=True, timeout=600)
+        import torch
+        import soundfile as sf
+        import numpy as np
+        from demucs.pretrained import get_model
+        from demucs.apply import apply_model
+
+        logger.info("Running Demucs AI vocal separation (Python API)...")
         
-        if r2.returncode == 0:
-            # Find the no_vocals file
-            song_name = os.path.splitext(os.path.basename(full_audio))[0]
-            no_vocals_path = os.path.join(output_dir, "htdemucs", song_name, "no_vocals.wav")
-            
-            if os.path.exists(no_vocals_path):
-                # Convert to mono 24000hz for mixing
-                bg_audio = video_path + ".bg_audio.wav"
-                cmd3 = ["ffmpeg", "-y", "-i", no_vocals_path, "-ar", "24000", "-ac", "1", bg_audio]
-                subprocess.run(cmd3, capture_output=True, text=True)
-                
-                with open(bg_audio, "rb") as f:
-                    data = f.read()
-                os.unlink(bg_audio)
-                logger.info("Demucs vocal separation successful!")
-                return data
-            else:
-                logger.warning(f"Demucs output not found: {no_vocals_path}")
+        # Load audio
+        wav_np, sr = sf.read(full_audio)
+        if wav_np.ndim == 1:
+            wav = torch.from_numpy(wav_np).float().unsqueeze(0)
         else:
-            logger.warning(f"Demucs failed: {r2.stderr[:200]}")
-    except subprocess.TimeoutExpired:
-        logger.warning("Demucs timed out (>10min)")
-    except Exception as e:
-        logger.warning(f"Demucs error: {e}")
-    finally:
+            wav = torch.from_numpy(wav_np.T).float()
+        
+        # Load model
+        model = get_model('htdemucs')
+        model.eval()
+        model.cpu()
+        
+        # Resample if needed
+        if sr != model.samplerate:
+            from scipy.signal import resample
+            num_samples = int(wav.shape[-1] * model.samplerate / sr)
+            wav_np2 = wav.numpy()
+            resampled = np.array([resample(ch, num_samples) for ch in wav_np2])
+            wav = torch.from_numpy(resampled).float()
+            sr = model.samplerate
+        
+        # Ensure stereo
+        if wav.shape[0] == 1:
+            wav = wav.repeat(2, 1)
+        
+        # Normalize
+        ref = wav.mean(0)
+        mean_val = ref.mean()
+        std_val = ref.std()
+        wav_norm = (wav - mean_val) / (std_val + 1e-8)
+        
+        # Run separation
+        with torch.no_grad():
+            sources = apply_model(model, wav_norm.unsqueeze(0), device='cpu')
+        
+        # Sum all non-vocal sources
+        vocals_idx = model.sources.index('vocals')
+        no_vocals = torch.zeros_like(sources[0, 0])
+        for i, name in enumerate(model.sources):
+            if name != 'vocals':
+                no_vocals += sources[0, i]
+        
+        # Denormalize
+        no_vocals = no_vocals * (std_val + 1e-8) + mean_val
+        
+        # Save to temp file as stereo 44100Hz
+        temp_stereo = video_path + ".bg_stereo.wav"
+        sf.write(temp_stereo, no_vocals.numpy().T, sr)
+        
+        # Convert to mono 24000Hz for mixing with TTS
+        bg_audio = video_path + ".bg_audio.wav"
+        cmd3 = ["ffmpeg", "-y", "-i", temp_stereo, "-ar", "24000", "-ac", "1", bg_audio]
+        subprocess.run(cmd3, capture_output=True, text=True)
+        
+        with open(bg_audio, "rb") as f:
+            data = f.read()
+        
         # Cleanup
-        try:
-            os.unlink(full_audio)
-        except Exception:
-            pass
-        import shutil
-        try:
-            shutil.rmtree(output_dir, ignore_errors=True)
-        except Exception:
-            pass
+        for p in [full_audio, temp_stereo, bg_audio]:
+            try: os.unlink(p)
+            except: pass
+        
+        # Free memory
+        del model, sources, wav, wav_norm, no_vocals
+        torch.cuda.empty_cache() if torch.cuda.is_available() else None
+        import gc; gc.collect()
+        
+        logger.info("Demucs vocal separation successful!")
+        return data
+        
+    except Exception as e:
+        logger.warning(f"Demucs AI failed: {e}")
+        try: os.unlink(full_audio)
+        except: pass
     
     # Fallback: return full audio (with voice) if Demucs fails
     logger.warning("Demucs failed, falling back to full audio")

@@ -823,11 +823,39 @@ const Editor = () => {
                 className="w-full py-2 bg-amber-50 border border-amber-200 text-amber-700 text-[11px] font-semibold rounded-sm hover:bg-amber-100 flex items-center justify-center gap-1">
                 <Package className="w-3 h-3" /> Export All (MP3+MP4+SRT)
               </button>
+              {project?.file_type === 'video' && (
+                <div className="mt-1 space-y-1.5">
+                  <button onClick={extractBackground} disabled={extractingBg} data-testid="extract-bg-btn"
+                    className="w-full py-2 bg-pink-50 border border-pink-200 text-pink-700 text-[11px] font-semibold rounded-sm hover:bg-pink-100 disabled:opacity-50 flex items-center justify-center gap-1">
+                    {extractingBg ? <><Spinner className="w-3 h-3 animate-spin" /> Removing voice...</> : <><MusicNote className="w-3 h-3" /> Extract Background Audio</>}
+                  </button>
+                  {bgAudioUrl && (
+                    <a href={bgAudioUrl} download={`${project?.title || 'background'}_music.wav`} data-testid="download-bg-audio-btn"
+                      className="w-full py-2 bg-pink-100 border border-pink-300 text-pink-800 text-center text-[11px] font-bold rounded-sm hover:bg-pink-200 flex items-center justify-center gap-1">
+                      <Download className="w-3 h-3" /> Download Background Music
+                    </a>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Extract Background Audio - always visible for videos */}
+          {project?.file_type === 'video' && !(audioUrl || videoUrl) && (
+            <div className={`border-t p-4 space-y-1.5 ${d?'border-zinc-800':'border-black/10'}`}>
+              <button onClick={extractBackground} disabled={extractingBg} data-testid="extract-bg-btn-standalone"
+                className="w-full py-2 bg-pink-50 border border-pink-200 text-pink-700 text-[11px] font-semibold rounded-sm hover:bg-pink-100 disabled:opacity-50 flex items-center justify-center gap-1">
+                {extractingBg ? <><Spinner className="w-3 h-3 animate-spin" /> Removing voice...</> : <><MusicNote className="w-3 h-3" /> Extract Background Audio</>}
+              </button>
+              {bgAudioUrl && (
+                <a href={bgAudioUrl} download={`${project?.title || 'background'}_music.wav`} data-testid="download-bg-audio-btn-standalone"
+                  className="w-full py-2 bg-pink-100 border border-pink-300 text-pink-800 text-center text-[11px] font-bold rounded-sm hover:bg-pink-200 flex items-center justify-center gap-1">
+                  <Download className="w-3 h-3" /> Download Background Music
+                </a>
+              )}
             </div>
           )}
         </div>
-
-        {/* Main Content Area */}
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Actors Panel */}
           {actors.length > 0 && (

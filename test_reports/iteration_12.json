@@ -1,0 +1,69 @@
+{
+  "summary": "Tested Demucs AI vocal removal bug fix. Backend: 10/10 tests passed (100%). POST /api/projects/{project_id}/extract-background returns 200 with WAV audio. Demucs Python API successfully removes human voice and keeps background music. Frontend: Extract Background Audio button visible in Editor sidebar, clicking it shows 'Removing voice...' loading state, then 'Download Background Music' button appears with success toast.",
+
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+
+  "passed_tests": [
+    "POST /api/auth/login - Login with test@voxidub.com / test123 works",
+    "GET /api/projects/proj_e7169160ad1f - Test project exists with video file",
+    "POST /api/projects/{project_id}/extract-background - Returns 200",
+    "POST /api/projects/{project_id}/extract-background - Returns WAV audio with RIFF header",
+    "POST /api/projects/{project_id}/extract-background - Requires authentication (401 without token)",
+    "POST /api/projects/invalid_id/extract-background - Returns 404 for invalid project",
+    "GET /api/projects/{project_id}/download-srt - Endpoint exists",
+    "GET /api/projects/{project_id}/download-mp3 - Endpoint exists",
+    "GET /api/ - API root returns 'VoxiDub API'",
+    "GET /api/projects - Requires authentication",
+    "Frontend: Editor page loads correctly for video project",
+    "Frontend: Extract Background Audio button visible in sidebar",
+    "Frontend: Button shows 'Removing voice...' during Demucs processing",
+    "Frontend: Download Background Music button appears after extraction",
+    "Frontend: Toast notification shows 'Background audio extracted! Voice removed.'"
+  ],
+
+  "test_report_links": [
+    "/app/backend/tests/test_demucs_vocal_removal.py",
+    "/app/test_reports/pytest/pytest_demucs.xml"
+  ],
+
+  "action_items": [],
+
+  "critical_code_review_comments": [],
+
+  "updated_files": [
+    "/app/backend/tests/test_demucs_vocal_removal.py",
+    "/app/backend/tests/conftest.py"
+  ],
+
+  "success_rate": {
+    "backend": "100% (10/10 tests passed)",
+    "frontend": "100% (All UI elements working correctly)"
+  },
+
+  "test_credentials": "Email: test@voxidub.com, Password: test123, Test Project: proj_e7169160ad1f",
+
+  "seed_data_creation": "Used existing test project proj_e7169160ad1f with uploaded video",
+
+  "retest_needed": false,
+
+  "should_main_agent_self_test": false,
+
+  "context_for_next_testing_agent": "Demucs AI vocal removal feature tested and working. The extract_background_audio() function in server.py (line 321) uses Demucs Python API with soundfile instead of CLI. Backend logs confirm 'Demucs vocal separation successful!' messages. Frontend has two Extract Background Audio buttons: one standalone (data-testid='extract-bg-btn-standalone') when no audio generated, and one in download section (data-testid='extract-bg-btn') when audio exists. Test session token can be obtained dynamically via login.",
+
+  "demucs_fix_verification": {
+    "old_approach": "CLI-based Demucs (failed due to torchaudio CUDA dependency)",
+    "new_approach": "Python API with get_model + apply_model + soundfile",
+    "backend_logs_confirm": "Multiple 'Demucs vocal separation successful!' messages in /var/log/supervisor/backend.err.log",
+    "audio_output": "240KB WAV file with RIFF header, mono 24000Hz",
+    "processing_time": "~5 seconds per extraction"
+  }
+}
