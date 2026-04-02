@@ -219,7 +219,7 @@ def build_actors_from_segments(segments: list) -> list:
         label = f"{role} ({gender_tag})" if role else gender_tag
         actors.append({
             "id": spk, "label": label, "gender": info["gender"],
-            "role": role, "voice": "mms_khmer" if info["gender"] == "male" else "mms_khmer_f",
+            "role": role, "voice": "mms_khmer" if info["gender"] == "male" else "sophea",
             "custom_voice": None, "total_speaking_time": round(info["total_time"], 1),
             "line_count": info["line_count"],
             "first_start": round(info["first_start"], 1),
@@ -238,7 +238,7 @@ def apply_speaker_detections(segments: list, detections: list) -> list:
             role = d.get("role", "")
             segments[idx]["gender"] = gender
             segments[idx]["speaker"] = speaker
-            segments[idx]["voice"] = "mms_khmer" if gender == "male" else "mms_khmer_f"
+            segments[idx]["voice"] = "mms_khmer" if gender == "male" else "sophea"
             if role:
                 segments[idx]["role"] = role
     return segments
@@ -249,7 +249,7 @@ def apply_fallback_speakers(segments: list) -> list:
     for i in range(len(segments)):
         segments[i]["speaker"] = f"SPEAKER_{str(i % 2).zfill(2)}"
         segments[i]["gender"] = "female" if i % 2 == 0 else "male"
-        segments[i]["voice"] = "mms_khmer_f" if i % 2 == 0 else "mms_khmer"
+        segments[i]["voice"] = "sophea" if i % 2 == 0 else "mms_khmer"
     return segments
 
 
@@ -432,7 +432,7 @@ def detect_speakers_audio(audio_path: str, segments: list) -> list:
     for seg in segments:
         gender = speaker_gender.get(seg["speaker"], "female")
         seg["gender"] = gender
-        seg["voice"] = "mms_khmer" if gender == "male" else "mms_khmer_f"
+        seg["voice"] = "mms_khmer" if gender == "male" else "sophea"
 
     return segments
 
@@ -1141,7 +1141,7 @@ async def create_project(project: ProjectCreate, authorization: str = Header(Non
         "file_type": "text", "original_file_path": None, "original_filename": None,
         "extracted_audio_path": None, "original_text": None, "translated_text": None,
         "dubbed_audio_path": None, "dubbed_video_path": None, "segments": [], "actors": [],
-        "status": "created", "voice": "mms_khmer_f", "female_voice": "mms_khmer_f", "male_voice": "mms_khmer",
+        "status": "created", "voice": "sophea", "female_voice": "sophea", "male_voice": "mms_khmer",
         "detected_language": None, "share_token": None,
         "created_at": now, "updated_at": now
     }
@@ -1279,7 +1279,7 @@ async def merge_segments(project_id: str, req: MergeRequest, authorization: str 
         "translated": " ".join(segments[i].get("translated", "") for i in ids).strip(),
         "speaker": segments[ids[0]].get("speaker", "SPEAKER_00"),
         "gender": segments[ids[0]].get("gender", "female"),
-        "voice": segments[ids[0]].get("voice", "mms_khmer_f"),
+        "voice": segments[ids[0]].get("voice", "sophea"),
     }
     new_segments = []
     skip = set(ids)
@@ -1460,7 +1460,7 @@ async def transcribe_segments(project_id: str, authorization: str = Header(None)
                     "translated": "",
                     "speaker": "SPEAKER_00",
                     "gender": "female",
-                    "voice": "mms_khmer_f"
+                    "voice": "sophea"
                 })
 
             # Step 2: Detect speakers using SpeechBrain audio analysis
