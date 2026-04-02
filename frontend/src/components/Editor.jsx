@@ -146,17 +146,49 @@ const Editor = () => {
 
   const extractBackground = async () => {
     setExtractingBg(true);
+    startProgressPoll();
     try {
       const r = await axios.post(`${API}/projects/${projectId}/extract-background`, {}, {
         headers: { Authorization: `Bearer ${token}` },
-        responseType: 'blob',
-        timeout: 600000,
+        timeout: 30000,
       });
-      const url = URL.createObjectURL(r.data);
-      setBgAudioUrl(url);
-      toast.success("Background audio extracted! Voice removed.");
+      // Check if response is JSON (async processing) or blob (direct file)
+      if (r.data?.status === "processing") {
+        toast.info("Removing human voice with AI... Please wait.");
+        setProcessingMsg("Extracting background audio (removing voice)...");
+        // Poll until bg_audio is ready
+        for (let i = 0; i < 300; i++) {
+          await new Promise(res => setTimeout(res, 3000));
+          try {
+            const proj = await axios.get(`${API}/projects/${projectId}`, { headers: { Authorization: `Bearer ${token}` } });
+            if (proj.data.bg_audio_path) {
+              // Download the bg audio
+              const bgResp = await axios.get(`${API}/projects/${projectId}/bg-audio`, {
+                headers: { Authorization: `Bearer ${token}` },
+                responseType: 'blob',
+              });
+              const url = URL.createObjectURL(bgResp.data);
+              setBgAudioUrl(url);
+              toast.success("Background audio extracted! Voice removed.");
+              break;
+            }
+            // Check queue status for error
+            const qs = await axios.get(`${API}/projects/${projectId}/queue-status`, { headers: { Authorization: `Bearer ${token}` } });
+            setProgressInfo(qs.data);
+            if (qs.data?.queue_status === "error") {
+              toast.error("Extraction failed");
+              break;
+            }
+          } catch (err) { console.warn("Poll error:", err.message); }
+        }
+        setProcessingMsg(null);
+      } else if (r.data instanceof Blob || r.headers?.['content-type']?.includes('audio')) {
+        const url = URL.createObjectURL(r.data);
+        setBgAudioUrl(url);
+        toast.success("Background audio extracted! Voice removed.");
+      }
     } catch (e) { toast.error(e.response?.data?.detail || "Extraction failed"); }
-    finally { setExtractingBg(false); }
+    finally { setExtractingBg(false); stopProgressPoll(); }
   };
 
   const generateAudio = async () => {

@@ -318,8 +318,11 @@ def mix_audio_timeline(segment_audio_pairs: list, segments: list, total_duration
     return combined
 
 
-def extract_background_audio(video_path: str) -> bytes:
-    """Extract audio from video, use Demucs AI (Python API) to remove human voice, keep only background music/sfx."""
+def extract_background_audio(video_path: str, project_id: str = None) -> bytes:
+    """Extract audio from video, use Demucs AI (Python API) to remove human voice, keep only background music/sfx.
+    Processes in 30-second chunks for progress tracking and lower memory usage."""
+    
+    CHUNK_SECONDS = 30  # Process 30 seconds at a time
     
     # Step 1: Extract audio from video as WAV (44100Hz stereo for Demucs)
     full_audio = video_path + ".full_audio.wav"
@@ -333,7 +336,7 @@ def extract_background_audio(video_path: str) -> bytes:
         logger.warning(f"Failed to extract audio: {r1.stderr[:200]}")
         return None
 
-    # Step 2: Use Demucs AI Python API for vocal separation
+    # Step 2: Use Demucs AI Python API for vocal separation (chunked)
     try:
         import torch
         import soundfile as sf
@@ -341,7 +344,7 @@ def extract_background_audio(video_path: str) -> bytes:
         from demucs.pretrained import get_model
         from demucs.apply import apply_model
 
-        logger.info("Running Demucs AI vocal separation (Python API)...")
+        logger.info("Running Demucs AI vocal separation (chunked)...")
         
         # Load audio
         wav_np, sr = sf.read(full_audio)
@@ -368,29 +371,74 @@ def extract_background_audio(video_path: str) -> bytes:
         if wav.shape[0] == 1:
             wav = wav.repeat(2, 1)
         
-        # Normalize
-        ref = wav.mean(0)
-        mean_val = ref.mean()
-        std_val = ref.std()
-        wav_norm = (wav - mean_val) / (std_val + 1e-8)
+        # Split into chunks
+        chunk_samples = CHUNK_SECONDS * sr
+        total_samples = wav.shape[-1]
+        num_chunks = max(1, (total_samples + chunk_samples - 1) // chunk_samples)
+        total_duration = total_samples / sr
         
-        # Run separation
-        with torch.no_grad():
-            sources = apply_model(model, wav_norm.unsqueeze(0), device='cpu')
+        logger.info(f"Demucs: {total_duration:.0f}s audio → {num_chunks} chunks of {CHUNK_SECONDS}s")
         
-        # Sum all non-vocal sources
-        vocals_idx = model.sources.index('vocals')
-        no_vocals = torch.zeros_like(sources[0, 0])
-        for i, name in enumerate(model.sources):
-            if name != 'vocals':
-                no_vocals += sources[0, i]
+        # Update progress
+        if project_id and project_id in queue_status:
+            queue_status[project_id].update({
+                "step": "removing_vocals",
+                "progress": 0,
+                "total": num_chunks,
+                "demucs_chunks": num_chunks,
+                "demucs_duration": round(total_duration, 1)
+            })
         
-        # Denormalize
-        no_vocals = no_vocals * (std_val + 1e-8) + mean_val
+        all_no_vocals = []
         
-        # Save to temp file as stereo 44100Hz
+        for chunk_idx in range(num_chunks):
+            start = chunk_idx * chunk_samples
+            end = min(start + chunk_samples, total_samples)
+            chunk = wav[:, start:end]
+            
+            # Normalize chunk
+            ref = chunk.mean(0)
+            mean_val = ref.mean()
+            std_val = ref.std()
+            chunk_norm = (chunk - mean_val) / (std_val + 1e-8)
+            
+            # Run separation on chunk
+            with torch.no_grad():
+                sources = apply_model(model, chunk_norm.unsqueeze(0), device='cpu')
+            
+            # Sum all non-vocal sources
+            vocals_idx = model.sources.index('vocals')
+            no_vocals = torch.zeros_like(sources[0, 0])
+            for i, name in enumerate(model.sources):
+                if name != 'vocals':
+                    no_vocals += sources[0, i]
+            
+            # Denormalize
+            no_vocals = no_vocals * (std_val + 1e-8) + mean_val
+            all_no_vocals.append(no_vocals)
+            
+            # Update progress
+            if project_id and project_id in queue_status:
+                queue_status[project_id].update({
+                    "progress": chunk_idx + 1,
+                    "total": num_chunks,
+                })
+            
+            logger.info(f"Demucs chunk {chunk_idx + 1}/{num_chunks} done")
+            
+            # Free chunk memory
+            del sources, chunk, chunk_norm, no_vocals
+        
+        # Concatenate all chunks
+        final_no_vocals = torch.cat(all_no_vocals, dim=-1)
+        
+        # Save to temp file as stereo
         temp_stereo = video_path + ".bg_stereo.wav"
-        sf.write(temp_stereo, no_vocals.numpy().T, sr)
+        sf.write(temp_stereo, final_no_vocals.numpy().T, sr)
+        
+        # Update progress - mixing step
+        if project_id and project_id in queue_status:
+            queue_status[project_id].update({"step": "mixing_audio"})
         
         # Convert to mono 24000Hz for mixing with TTS
         bg_audio = video_path + ".bg_audio.wav"
@@ -406,7 +454,7 @@ def extract_background_audio(video_path: str) -> bytes:
             except: pass
         
         # Free memory
-        del model, sources, wav, wav_norm, no_vocals
+        del model, wav, final_no_vocals, all_no_vocals
         torch.cuda.empty_cache() if torch.cuda.is_available() else None
         import gc; gc.collect()
         
@@ -1376,7 +1424,7 @@ async def regenerate_segment_audio(project_id: str, segment_idx: int, speed: int
 
 @api_router.post("/projects/{project_id}/extract-background")
 async def extract_background_endpoint(project_id: str, authorization: str = Header(None)):
-    """Extract background audio (remove human voice, keep music/sfx) using Demucs AI."""
+    """Extract background audio (remove human voice, keep music/sfx) using Demucs AI. Runs in background."""
     user = await get_current_user(authorization)
     project = strip_oid(await db.projects.find_one({"project_id": project_id, "user_id": user.user_id}))
     if not project:
@@ -1384,35 +1432,72 @@ async def extract_background_endpoint(project_id: str, authorization: str = Head
     if project.get("file_type") != "video" or not project.get("original_file_path"):
         raise HTTPException(status_code=400, detail="No video file found")
 
-    # Get video file
-    video_data, _ = get_object(project["original_file_path"])
-    ext = project.get("original_filename", "video.mp4").split(".")[-1]
-    tmp_video = os.path.join(tempfile.gettempdir(), f"extract_{uuid.uuid4().hex}.{ext}")
-    with open(tmp_video, "wb") as f:
-        f.write(video_data)
+    # If already extracted, return the file directly
+    if project.get("bg_audio_path"):
+        bg_path = os.path.join(str(LOCAL_STORAGE_DIR), project["bg_audio_path"])
+        if os.path.exists(bg_path):
+            with open(bg_path, "rb") as f:
+                data = f.read()
+            return StreamingResponse(
+                io.BytesIO(data),
+                media_type="audio/wav",
+                headers={"Content-Disposition": f"attachment; filename={project['bg_audio_path']}"}
+            )
 
-    bg_bytes = extract_background_audio(tmp_video)
-    os.unlink(tmp_video)
+    # Start background extraction
+    import time as _time
+    queue_status[project_id] = {"status": "processing", "step": "removing_vocals", "progress": 0, "total": 0, "started_at": _time.time()}
+    
+    async def _bg_extract():
+        try:
+            video_data, _ = get_object(project["original_file_path"])
+            ext = project.get("original_filename", "video.mp4").split(".")[-1]
+            tmp_video = os.path.join(tempfile.gettempdir(), f"extract_{uuid.uuid4().hex}.{ext}")
+            with open(tmp_video, "wb") as f:
+                f.write(video_data)
+            
+            bg_bytes = extract_background_audio(tmp_video, project_id=project_id)
+            try: os.unlink(tmp_video)
+            except: pass
+            
+            if bg_bytes:
+                bg_filename = f"bg_audio_{project_id}_{uuid.uuid4().hex[:6]}.wav"
+                bg_path = os.path.join(str(LOCAL_STORAGE_DIR), bg_filename)
+                with open(bg_path, "wb") as f:
+                    f.write(bg_bytes)
+                await db.projects.update_one(
+                    {"project_id": project_id},
+                    {"$set": {"bg_audio_path": bg_filename, "updated_at": datetime.now(timezone.utc).isoformat()}}
+                )
+                queue_status[project_id] = {"status": "done", "step": "done", "bg_ready": True}
+                logger.info(f"Background audio extraction complete: {bg_filename}")
+            else:
+                queue_status[project_id] = {"status": "error", "step": "error"}
+        except Exception as e:
+            logger.error(f"Background extraction error: {e}")
+            queue_status[project_id] = {"status": "error", "step": "error"}
+    
+    asyncio.create_task(_bg_extract())
+    return {"status": "processing", "message": "Extracting background audio. Removing human voice with AI..."}
 
-    if not bg_bytes:
-        raise HTTPException(status_code=500, detail="Failed to extract background audio")
-
-    # Save and return
-    bg_filename = f"bg_audio_{project_id}_{uuid.uuid4().hex[:6]}.wav"
-    bg_path = os.path.join(str(LOCAL_STORAGE_DIR), bg_filename)
-    with open(bg_path, "wb") as f:
-        f.write(bg_bytes)
-
-    # Save path to project
-    await db.projects.update_one(
-        {"project_id": project_id},
-        {"$set": {"bg_audio_path": bg_filename, "updated_at": datetime.now(timezone.utc).isoformat()}}
-    )
-
+@api_router.get("/projects/{project_id}/bg-audio")
+async def get_bg_audio(project_id: str, authorization: str = Header(None)):
+    """Download the extracted background audio file."""
+    user = await get_current_user(authorization)
+    project = strip_oid(await db.projects.find_one({"project_id": project_id, "user_id": user.user_id}))
+    if not project or not project.get("bg_audio_path"):
+        raise HTTPException(status_code=404, detail="Background audio not ready")
+    
+    bg_path = os.path.join(str(LOCAL_STORAGE_DIR), project["bg_audio_path"])
+    if not os.path.exists(bg_path):
+        raise HTTPException(status_code=404, detail="Background audio file not found")
+    
+    with open(bg_path, "rb") as f:
+        data = f.read()
     return StreamingResponse(
-        io.BytesIO(bg_bytes),
+        io.BytesIO(data),
         media_type="audio/wav",
-        headers={"Content-Disposition": f"attachment; filename={bg_filename}"}
+        headers={"Content-Disposition": f"attachment; filename={project['bg_audio_path']}"}
     )
 
 
@@ -1644,7 +1729,7 @@ async def _generate_audio_sync(project_id, project, segments, speed, user, bg_vo
                 tmp_video = os.path.join(tempfile.gettempdir(), f"bg_{uuid.uuid4().hex}.{ext}")
                 with open(tmp_video, "wb") as f:
                     f.write(video_data)
-                bg_bytes = extract_background_audio(tmp_video)
+                bg_bytes = extract_background_audio(tmp_video, project_id=project_id)
                 os.unlink(tmp_video)
                 if bg_bytes:
                     # Convert bg_volume (0-100%) to dB reduction
@@ -2020,6 +2105,8 @@ async def get_queue_status(project_id: str, authorization: str = Header(None)):
         "total": total,
         "elapsed": round(elapsed, 1),
         "eta": round(eta, 1),
+        "demucs_chunks": qs.get("demucs_chunks", 0),
+        "demucs_duration": qs.get("demucs_duration", 0),
     }
 
 # ===== Google Cloud TTS Integration =====

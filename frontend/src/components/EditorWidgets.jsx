@@ -27,7 +27,7 @@ export const StepProgress = ({ currentStep, steps, isDark }) => {
 export const ProcessingOverlay = ({ message, isDark, progressInfo }) => {
   const d = isDark;
   const fmtTime = (s) => { if (!s || s <= 0) return ""; const m = Math.floor(s / 60); const sec = Math.round(s % 60); return m > 0 ? `${m}m ${sec}s` : `${sec}s`; };
-  const stepLabels = { transcribing: "Detecting Speakers", translating: "Translating", generating_audio: "Generating Audio", generating_video: "Merging Video", starting: "Starting..." };
+  const stepLabels = { transcribing: "Detecting Speakers", translating: "Translating", generating_audio: "Generating Audio", generating_video: "Merging Video", starting: "Starting...", removing_vocals: "Removing Human Voice (AI)", mixing_audio: "Mixing Background Music" };
   return (
   <AnimatePresence>
     {message && (
@@ -57,13 +57,20 @@ export const ProcessingOverlay = ({ message, isDark, progressInfo }) => {
                 />
               </div>
               <div className="flex items-center justify-between text-[10px] text-zinc-500">
-                <span data-testid="progress-count">{progressInfo.progress}/{progressInfo.total} segments</span>
+                <span data-testid="progress-count">
+                  {progressInfo.step === 'removing_vocals' 
+                    ? `${progressInfo.progress}/${progressInfo.total} chunks` 
+                    : `${progressInfo.progress}/${progressInfo.total} segments`}
+                </span>
                 <span>{Math.round((progressInfo.progress / progressInfo.total) * 100)}%</span>
               </div>
               <div className="flex items-center justify-between text-[10px] text-zinc-400 mt-1">
                 {progressInfo.elapsed > 0 && <span>Elapsed: {fmtTime(progressInfo.elapsed)}</span>}
                 {progressInfo.eta > 0 && <span>~{fmtTime(progressInfo.eta)} left</span>}
               </div>
+              {progressInfo.demucs_duration > 0 && progressInfo.step === 'removing_vocals' && (
+                <p className="text-[9px] text-zinc-400 mt-1">Audio: {Math.round(progressInfo.demucs_duration)}s total</p>
+              )}
             </div>
           )}
         </motion.div>
