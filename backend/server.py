@@ -219,7 +219,7 @@ def build_actors_from_segments(segments: list) -> list:
         label = f"{role} ({gender_tag})" if role else gender_tag
         actors.append({
             "id": spk, "label": label, "gender": info["gender"],
-            "role": role, "voice": "mms_khmer" if info["gender"] == "male" else "mms_khmer_f",
+            "role": role, "voice": "mms_khmer" if info["gender"] == "male" else "sophea",
             "custom_voice": None, "total_speaking_time": round(info["total_time"], 1),
             "line_count": info["line_count"],
             "first_start": round(info["first_start"], 1),
