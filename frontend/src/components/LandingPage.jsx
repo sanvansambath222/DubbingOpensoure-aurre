@@ -20,7 +20,7 @@ const LandingPage = () => {
             <div className={`w-8 h-8 rounded-sm flex items-center justify-center ${d?'bg-white':'bg-zinc-950'}`}>
               <MicrophoneStage className={`w-4 h-4 ${d?'text-zinc-950':'text-white'}`} weight="fill" />
             </div>
-            <span className={`text-lg font-semibold tracking-tight ${d?'text-white':'text-zinc-950'}`} style={{fontFamily:"'Outfit',sans-serif"}}>KhmerDub</span>
+            <span className={`text-lg font-semibold tracking-tight ${d?'text-white':'text-zinc-950'}`} style={{fontFamily:"'Outfit',sans-serif"}}>HeyGenerAI</span>
           </div>
           <div className="flex items-center gap-3">
             <ThemeToggle />

@@ -33,7 +33,7 @@ const SharedProject = () => {
         <h2 className={`text-xl font-bold mb-2 ${d?'text-white':'text-zinc-950'}`}>Not Found</h2>
         <p className="text-zinc-500 text-sm mb-6">{error}</p>
         <a href="/" className={`px-5 py-2.5 text-sm font-semibold rounded-sm transition-colors ${d?'bg-white text-zinc-950 hover:bg-zinc-200':'bg-cyan-500 text-zinc-950 hover:bg-cyan-400'}`}>
-          Go to KhmerDub
+          Go to HeyGenerAI
         </a>
       </div>
     </div>
@@ -49,7 +49,7 @@ const SharedProject = () => {
             <div className={`w-9 h-9 border rounded-sm flex items-center justify-center ${d?'bg-zinc-800 border-zinc-700':'bg-zinc-950/5 border-zinc-950/15'}`}>
               <MicrophoneStage className={`w-5 h-5 ${d?'text-white':'text-zinc-700'}`} weight="fill" />
             </div>
-            <span className={`text-lg font-semibold ${d?'text-white':'text-zinc-950'}`}>KhmerDub</span>
+            <span className={`text-lg font-semibold ${d?'text-white':'text-zinc-950'}`}>HeyGenerAI</span>
           </div>
           <div className="flex items-center gap-3">
             <ThemeToggle />

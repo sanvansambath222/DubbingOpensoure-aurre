@@ -85,7 +85,7 @@ export const AuthCallback = () => {
       try {
         const response = await axios.post(`${API}/auth/session`, {}, { headers: { "X-Session-ID": sessionId } });
         login(response.data.user, response.data.session_token);
-        toast.success("Welcome to Khmer Dubbing!");
+        toast.success("Welcome to HeyGenerAI!");
         navigate("/dashboard");
       } catch { toast.error("Authentication failed"); navigate("/"); }
     };

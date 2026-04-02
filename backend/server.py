@@ -32,7 +32,7 @@ GEMINI_TTS_API_KEY = os.environ.get('GEMINI_TTS_API_KEY')
 GOOGLE_TTS_SYNTHESIZE_URL = "https://texttospeech.googleapis.com/v1/text:synthesize"
 GOOGLE_TTS_VOICES_URL = "https://texttospeech.googleapis.com/v1/voices"
 
-APP_NAME = "khmer-dubbing"
+APP_NAME = "heygenerai"
 LOCAL_STORAGE_DIR = Path("/app/uploads")
 LOCAL_STORAGE_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -522,7 +522,7 @@ async def get_current_user(authorization: str = Header(None)) -> User:
 
 @api_router.get("/")
 async def root():
-    return {"message": "Khmer Dubbing API"}
+    return {"message": "HeyGenerAI API"}
 
 # Auth endpoints
 @api_router.post("/auth/session")
@@ -1509,7 +1509,7 @@ def download_youtube_audio(url: str) -> tuple:
 
 def save_youtube_voice_to_actor(project_id: str, audio_data: bytes, actors: list, actor_id: str) -> str:
     """Save YouTube audio to storage and optionally assign to an actor."""
-    storage_path = f"khmer-dubbing/{project_id}/yt_voice_{uuid.uuid4().hex[:8]}.mp3"
+    storage_path = f"heygenerai/{project_id}/yt_voice_{uuid.uuid4().hex[:8]}.mp3"
     put_object(storage_path, audio_data, "audio/mpeg")
     return storage_path
 

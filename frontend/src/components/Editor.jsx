@@ -123,7 +123,7 @@ const Editor = () => {
       const r = await axios.post(`${API}/projects/${projectId}/transcribe-segments`, {}, { headers: { Authorization: `Bearer ${token}` }, timeout: 900000 });
       setProject(r.data); setSegments(r.data.segments || []); setActors(r.data.actors || []);
       toast.success("Speakers detected!");
-      sendNotification("KhmerDub", "Speaker detection complete!");
+      sendNotification("HeyGenerAI", "Speaker detection complete!");
     } catch (e) { toast.error(e.response?.data?.detail || "Detection failed"); }
     finally { setProcessingMsg(null); }
   };
@@ -136,7 +136,7 @@ const Editor = () => {
       const r = await axios.post(`${API}/projects/${projectId}/translate-segments?target_language=${targetLanguage}`, {}, { headers: { Authorization: `Bearer ${token}` }, timeout: 900000 });
       setProject(r.data); setSegments(r.data.segments || []);
       toast.success(`Translation to ${langName} complete!`);
-      sendNotification("KhmerDub", `Translation to ${langName} complete!`);
+      sendNotification("HeyGenerAI", `Translation to ${langName} complete!`);
     } catch { toast.error("Translation failed"); }
     finally { setProcessingMsg(null); stopProgressPoll(); }
   };
@@ -164,7 +164,7 @@ const Editor = () => {
                 if (proj.data.dubbed_audio_path) loadFile(proj.data.dubbed_audio_path, 'audio');
                 if (proj.data.status === "audio_ready") {
                   toast.success("Audio generated!");
-                  sendNotification("KhmerDub", "Audio generation complete!");
+                  sendNotification("HeyGenerAI", "Audio generation complete!");
                 } else {
                   toast.error("Audio generation failed");
                 }
@@ -180,7 +180,7 @@ const Editor = () => {
       setProject(r.data);
       if (r.data.dubbed_audio_path) loadFile(r.data.dubbed_audio_path, 'audio');
       toast.success("Audio generated!");
-      sendNotification("KhmerDub", "Khmer audio generation complete!");
+      sendNotification("HeyGenerAI", "Khmer audio generation complete!");
     } catch { toast.error("Audio generation failed"); }
     finally { setProcessingMsg(null); stopProgressPoll(); }
   };
@@ -192,7 +192,7 @@ const Editor = () => {
       setProject(r.data);
       if (r.data.dubbed_video_path) loadFile(r.data.dubbed_video_path, 'video');
       toast.success("Video ready!");
-      sendNotification("KhmerDub", "Your dubbed video is ready!");
+      sendNotification("HeyGenerAI", "Your dubbed video is ready!");
     } catch { toast.error("Video generation failed"); }
     finally { setProcessingMsg(null); }
   };
@@ -455,7 +455,7 @@ const Editor = () => {
       if (r.data.actors) setActors(r.data.actors);
       if (r.data.dubbed_audio_path) loadFile(r.data.dubbed_audio_path, 'audio');
       toast.success("Auto-process complete!");
-      sendNotification("KhmerDub", "Auto-process complete!");
+      sendNotification("HeyGenerAI", "Auto-process complete!");
     } catch (e) { toast.error(e.response?.data?.detail || "Auto-process failed"); }
     finally { setProcessingMsg(null); stopProgressPoll(); }
   };
