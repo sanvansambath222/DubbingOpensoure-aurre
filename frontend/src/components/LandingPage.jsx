@@ -110,14 +110,10 @@ const LandingPage = () => {
               </p>
 
               {/* Social Login Buttons */}
-              <div className="flex gap-2 mb-4">
+              <div className="mb-4">
                 <button onClick={handleGoogleLogin} data-testid="google-login-btn"
-                  className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-md border text-xs font-semibold transition-colors ${d?'bg-zinc-800 border-zinc-700 text-white hover:bg-zinc-700':'bg-white border-zinc-200 text-zinc-700 hover:bg-zinc-50'}`}>
-                  <GoogleLogo className="w-4 h-4" weight="bold" /> Google
-                </button>
-                <button onClick={handleGithubLogin} data-testid="github-login-btn"
-                  className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-md border text-xs font-semibold transition-colors ${d?'bg-zinc-800 border-zinc-700 text-white hover:bg-zinc-700':'bg-white border-zinc-200 text-zinc-700 hover:bg-zinc-50'}`}>
-                  <GithubLogo className="w-4 h-4" weight="bold" /> GitHub
+                  className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-md border text-xs font-semibold transition-colors ${d?'bg-zinc-800 border-zinc-700 text-white hover:bg-zinc-700':'bg-white border-zinc-200 text-zinc-700 hover:bg-zinc-50'}`}>
+                  <GoogleLogo className="w-4 h-4" weight="bold" /> Continue with Google
                 </button>
               </div>
 
