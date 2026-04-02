@@ -1561,7 +1561,7 @@ async def regenerate_segment_audio(project_id: str, segment_idx: int, speed: int
         
         if is_mms_voice(voice_id):
             tts_path += ".wav"
-            mms_speed = (seg_speed + (speed / 100.0)) * 1.25  # MMS base boost
+            mms_speed = (seg_speed + (speed / 100.0)) * 1.1  # MMS base boost
             generate_mms_tts(seg["translated"], tts_path, speed=max(0.5, mms_speed), female=is_mms_female(voice_id))
             audio_seg = AudioSegment.from_file(tts_path)
         elif is_klea_voice(voice_id):
@@ -1846,7 +1846,7 @@ async def _generate_audio_sync(project_id, project, segments, speed, user, bg_vo
                 # Meta MMS Khmer TTS
                 tts_path = os.path.join(tempfile.gettempdir(), f"tts_{uuid.uuid4().hex}.wav")
                 try:
-                    mms_speed = (seg_speed + (speed / 100.0)) * 1.25  # MMS base boost
+                    mms_speed = (seg_speed + (speed / 100.0)) * 1.1  # MMS base boost
                     generate_mms_tts(seg["translated"], tts_path, speed=max(0.5, mms_speed), female=is_mms_female(voice_id))
                     audio_seg = AudioSegment.from_file(tts_path)
                     os.unlink(tts_path)
