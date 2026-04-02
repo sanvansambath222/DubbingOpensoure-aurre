@@ -219,7 +219,7 @@ def build_actors_from_segments(segments: list) -> list:
         label = f"{role} ({gender_tag})" if role else gender_tag
         actors.append({
             "id": spk, "label": label, "gender": info["gender"],
-            "role": role, "voice": "dara" if info["gender"] == "male" else "sophea",
+            "role": role, "voice": "mms_khmer" if info["gender"] == "male" else "sophea",
             "custom_voice": None, "total_speaking_time": round(info["total_time"], 1),
             "line_count": info["line_count"],
             "first_start": round(info["first_start"], 1),
@@ -238,7 +238,7 @@ def apply_speaker_detections(segments: list, detections: list) -> list:
             role = d.get("role", "")
             segments[idx]["gender"] = gender
             segments[idx]["speaker"] = speaker
-            segments[idx]["voice"] = "dara" if gender == "male" else "sophea"
+            segments[idx]["voice"] = "mms_khmer" if gender == "male" else "sophea"
             if role:
                 segments[idx]["role"] = role
     return segments
@@ -249,7 +249,7 @@ def apply_fallback_speakers(segments: list) -> list:
     for i in range(len(segments)):
         segments[i]["speaker"] = f"SPEAKER_{str(i % 2).zfill(2)}"
         segments[i]["gender"] = "female" if i % 2 == 0 else "male"
-        segments[i]["voice"] = "sophea" if i % 2 == 0 else "dara"
+        segments[i]["voice"] = "sophea" if i % 2 == 0 else "mms_khmer"
     return segments
 
 
@@ -923,7 +923,7 @@ async def create_project(project: ProjectCreate, authorization: str = Header(Non
         "file_type": "text", "original_file_path": None, "original_filename": None,
         "extracted_audio_path": None, "original_text": None, "translated_text": None,
         "dubbed_audio_path": None, "dubbed_video_path": None, "segments": [], "actors": [],
-        "status": "created", "voice": "sophea", "female_voice": "sophea", "male_voice": "dara",
+        "status": "created", "voice": "sophea", "female_voice": "sophea", "male_voice": "mms_khmer",
         "detected_language": None, "share_token": None,
         "created_at": now, "updated_at": now
     }
