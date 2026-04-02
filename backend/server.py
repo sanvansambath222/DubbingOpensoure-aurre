@@ -645,11 +645,15 @@ def get_edge_voice(lang_code, gender, voice_id=None):
     """Get the Edge TTS voice name for a language and gender."""
     lang_voices = EDGE_TTS_VOICES.get(lang_code, EDGE_TTS_VOICES["km"])
     voices = lang_voices.get(gender, lang_voices.get("female", []))
-    if voice_id:
+    if voice_id and not voice_id.startswith("mms_") and not voice_id.startswith("klea_"):
         for v in voices:
             if v["id"] == voice_id:
                 return v["voice"]
-    return voices[0]["voice"] if voices else "km-KH-SreymomNeural"
+    # Return first non-MMS/KLEA voice as default
+    for v in voices:
+        if not v.get("provider"):
+            return v["voice"]
+    return "km-KH-SreymomNeural"
 
 def is_mms_voice(voice_id):
     """Check if a voice_id is a Meta MMS voice."""
@@ -1532,7 +1536,7 @@ async def regenerate_segment_audio(project_id: str, segment_idx: int, speed: int
             audio_seg = AudioSegment.from_file(tts_path)
         else:
             tts_path += ".mp3"
-            edge_voice = get_edge_voice(target_lang, seg_gender, voice_id)
+            edge_voice = get_edge_voice(target_lang, seg_gender, None if (is_mms_voice(voice_id) or is_klea_voice(voice_id)) else voice_id)
             communicate = edge_tts.Communicate(seg["translated"], voice=edge_voice, rate=f"+{edge_rate}%" if edge_rate >= 0 else f"{edge_rate}%")
             await communicate.save(tts_path)
             audio_seg = AudioSegment.from_file(tts_path)
@@ -1819,6 +1823,7 @@ async def _generate_audio_sync(project_id, project, segments, speed, user, bg_vo
                     if os.path.exists(tts_path):
                         try: os.unlink(tts_path)
                         except: pass
+                    voice_id = None  # Reset so Edge TTS uses default voice
             
             if is_klea_voice(voice_id):
                 # KLEA Khmer word-by-word TTS
@@ -1835,6 +1840,7 @@ async def _generate_audio_sync(project_id, project, segments, speed, user, bg_vo
                     if os.path.exists(tts_path):
                         try: os.unlink(tts_path)
                         except: pass
+                    voice_id = None  # Reset so Edge TTS uses default voice
             
             # Edge TTS
             edge_voice = get_edge_voice(target_lang, seg_gender, voice_id)
