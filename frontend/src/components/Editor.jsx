@@ -301,7 +301,7 @@ const Editor = () => {
     setVoicePickerOpen(false);
     const actorId = voicePickerActorId;
     if (!actorId) return;
-    if (voiceData.provider === "edge") {
+    if (voiceData.provider === "edge" || voiceData.provider === "mms") {
       const updated = actors.map(a => a.id === actorId ? { ...a, voice: voiceData.voiceId, tts_provider: "edge", gcloud_voice: null, gcloud_language: null, gemini_voice: null } : a);
       setActors(updated);
       try { await axios.patch(`${API}/projects/${projectId}`, { actors: updated }, { headers: { Authorization: `Bearer ${token}` } }); } catch (err) { console.warn("Save failed:", err.message); }
