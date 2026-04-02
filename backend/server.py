@@ -318,21 +318,49 @@ def mix_audio_timeline(segment_audio_pairs: list, segments: list, total_duration
 
 
 def extract_background_audio(video_path: str) -> bytes:
-    """Extract audio track from video file using ffmpeg. Returns WAV bytes."""
-    output_path = video_path + ".bg_audio.wav"
-    cmd = [
+    """Extract audio from video, remove human voice, keep only background music/sfx."""
+    # Step 1: Extract full audio
+    full_audio = video_path + ".full_audio.wav"
+    cmd1 = [
         "ffmpeg", "-y", "-i", video_path,
-        "-vn", "-acodec", "pcm_s16le", "-ar", "24000", "-ac", "1",
-        output_path
+        "-vn", "-acodec", "pcm_s16le", "-ar", "24000", "-ac", "2",
+        full_audio
     ]
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    if result.returncode != 0:
-        logger.warning(f"Failed to extract background audio: {result.stderr[:200]}")
+    r1 = subprocess.run(cmd1, capture_output=True, text=True)
+    if r1.returncode != 0:
+        logger.warning(f"Failed to extract audio: {r1.stderr[:200]}")
         return None
+
+    # Step 2: Remove vocals (phase inversion - removes center-panned voice, keeps music)
+    bg_audio = video_path + ".bg_audio.wav"
+    cmd2 = [
+        "ffmpeg", "-y", "-i", full_audio,
+        "-af", "pan=stereo|c0=c0-c1|c1=c1-c0",
+        "-ar", "24000", "-ac", "1",
+        bg_audio
+    ]
+    r2 = subprocess.run(cmd2, capture_output=True, text=True)
+    
+    # Clean up full audio
     try:
-        with open(output_path, "rb") as f:
+        os.unlink(full_audio)
+    except Exception:
+        pass
+
+    if r2.returncode != 0:
+        logger.warning(f"Vocal removal failed, using full audio: {r2.stderr[:200]}")
+        # Fallback: just use full audio without vocal removal
+        cmd_fallback = [
+            "ffmpeg", "-y", "-i", video_path,
+            "-vn", "-acodec", "pcm_s16le", "-ar", "24000", "-ac", "1",
+            bg_audio
+        ]
+        subprocess.run(cmd_fallback, capture_output=True, text=True)
+
+    try:
+        with open(bg_audio, "rb") as f:
             data = f.read()
-        os.unlink(output_path)
+        os.unlink(bg_audio)
         return data
     except Exception:
         return None
