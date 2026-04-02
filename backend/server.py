@@ -598,7 +598,8 @@ LANGUAGE_NAMES = {
 
 # Edge TTS voices per output language: {lang_code: {male: [voices], female: [voices]}}
 EDGE_TTS_VOICES = {
-    "km": {"male": [{"id": "dara", "name": "Piseth (Boy)", "voice": "km-KH-PisethNeural"}],
+    "km": {"male": [{"id": "dara", "name": "Piseth (Boy)", "voice": "km-KH-PisethNeural"},
+                     {"id": "mms_khmer", "name": "Meta AI (Boy)", "voice": "mms-tts-khm", "provider": "mms"}],
             "female": [{"id": "sophea", "name": "Sreymom (Girl)", "voice": "km-KH-SreymomNeural"}]},
     "th": {"male": [{"id": "th_m1", "name": "Niwat (Boy)", "voice": "th-TH-NiwatNeural"}],
             "female": [{"id": "th_f1", "name": "Premwadee (Girl)", "voice": "th-TH-PremwadeeNeural"}]},
@@ -649,6 +650,41 @@ def get_edge_voice(lang_code, gender, voice_id=None):
             if v["id"] == voice_id:
                 return v["voice"]
     return voices[0]["voice"] if voices else "km-KH-SreymomNeural"
+
+def is_mms_voice(voice_id):
+    """Check if a voice_id is a Meta MMS voice."""
+    return voice_id and voice_id.startswith("mms_")
+
+# Meta MMS TTS model (lazy loaded)
+_mms_model = None
+_mms_tokenizer = None
+
+def get_mms_model():
+    """Lazy load the Meta MMS Khmer TTS model."""
+    global _mms_model, _mms_tokenizer
+    if _mms_model is None:
+        from transformers import VitsModel, AutoTokenizer
+        logger.info("Loading Meta MMS Khmer TTS model...")
+        _mms_model = VitsModel.from_pretrained('/root/.cache/mms-tts-khm')
+        _mms_tokenizer = AutoTokenizer.from_pretrained('/root/.cache/mms-tts-khm')
+        _mms_model.eval()
+        logger.info("Meta MMS Khmer model loaded!")
+    return _mms_model, _mms_tokenizer
+
+def generate_mms_tts(text: str, output_path: str):
+    """Generate Khmer speech using Meta MMS TTS. Returns True on success."""
+    import torch
+    import numpy as np
+    import scipy.io.wavfile as wavfile
+    
+    model, tokenizer = get_mms_model()
+    inputs = tokenizer(text, return_tensors="pt")
+    with torch.no_grad():
+        output = model(**inputs).waveform
+    audio = output.squeeze().cpu().numpy()
+    sr = model.config.sampling_rate
+    wavfile.write(output_path, rate=sr, data=audio)
+    return True
 
 # Auth
 async def get_current_user(authorization: str = Header(None)) -> User:
@@ -1353,7 +1389,7 @@ async def regenerate_segment_audio(project_id: str, segment_idx: int, speed: int
     seg_duration_ms = int((seg.get("end", 0) - seg.get("start", 0)) * 1000)
 
     # Find actor config
-    actor = next((a for a in actors if a["id"] == speaker), None)
+    actor = next((a for a in actors if a.get("speaker") == speaker or a.get("id") == speaker), None)
     if actor:
         seg_gender = actor.get("gender", seg_gender)
 
@@ -1386,15 +1422,22 @@ async def regenerate_segment_audio(project_id: str, segment_idx: int, speed: int
         except Exception as e:
             logger.warning(f"Gemini TTS failed for segment {segment_idx}, falling back to Edge: {str(e)[:100]}")
 
-    # Fallback to Edge TTS
+    # Fallback to Edge TTS or MMS TTS
     if audio_seg is None:
         voice_id = actor.get("voice") if actor else None
-        edge_voice = get_edge_voice(target_lang, seg_gender, voice_id)
-        tts_path = os.path.join(tempfile.gettempdir(), f"regen_{uuid.uuid4().hex}.mp3")
+        tts_path = os.path.join(tempfile.gettempdir(), f"regen_{uuid.uuid4().hex}")
         edge_rate = int((seg_speed - 1.0) * 100) + speed
-        communicate = edge_tts.Communicate(seg["translated"], voice=edge_voice, rate=f"+{edge_rate}%" if edge_rate >= 0 else f"{edge_rate}%")
-        await communicate.save(tts_path)
-        audio_seg = AudioSegment.from_file(tts_path)
+        
+        if is_mms_voice(voice_id):
+            tts_path += ".wav"
+            generate_mms_tts(seg["translated"], tts_path)
+            audio_seg = AudioSegment.from_file(tts_path)
+        else:
+            tts_path += ".mp3"
+            edge_voice = get_edge_voice(target_lang, seg_gender, voice_id)
+            communicate = edge_tts.Communicate(seg["translated"], voice=edge_voice, rate=f"+{edge_rate}%" if edge_rate >= 0 else f"{edge_rate}%")
+            await communicate.save(tts_path)
+            audio_seg = AudioSegment.from_file(tts_path)
         os.unlink(tts_path)
 
     if seg_duration_ms > 0:
@@ -1660,8 +1703,27 @@ async def _generate_audio_sync(project_id, project, segments, speed, user, bg_vo
                             await asyncio.sleep(2)
                 logger.error(f"Gemini TTS failed, falling back to Edge TTS")
 
-            # Edge TTS (default or fallback)
-            edge_voice = get_edge_voice(target_lang, seg_gender, actor_ai_voice_map.get(speaker))
+            # Edge TTS or MMS TTS (default or fallback)
+            voice_id = actor_ai_voice_map.get(speaker)
+            
+            if is_mms_voice(voice_id):
+                # Meta MMS Khmer TTS
+                tts_path = os.path.join(tempfile.gettempdir(), f"tts_{uuid.uuid4().hex}.wav")
+                try:
+                    generate_mms_tts(seg["translated"], tts_path)
+                    audio_seg = AudioSegment.from_file(tts_path)
+                    os.unlink(tts_path)
+                    if seg_duration_ms > 0:
+                        audio_seg = fit_audio_to_duration(audio_seg, seg_duration_ms)
+                    return (seg, audio_seg)
+                except Exception as e:
+                    logger.warning(f"MMS TTS failed: {e}, falling back to Edge TTS")
+                    if os.path.exists(tts_path):
+                        try: os.unlink(tts_path)
+                        except: pass
+            
+            # Edge TTS
+            edge_voice = get_edge_voice(target_lang, seg_gender, voice_id)
             tts_path = os.path.join(tempfile.gettempdir(), f"tts_{uuid.uuid4().hex}.mp3")
             edge_rate = int((seg_speed - 1.0) * 100) + speed
             for attempt in range(3):
