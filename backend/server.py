@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Header, UploadFile, File, Response, Query, Form
+from fastapi import FastAPI, APIRouter, HTTPException, Header, UploadFile, File, Response, Query, Form, Request
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import StreamingResponse
@@ -418,6 +418,8 @@ class User(BaseModel):
     email: str
     name: str
     picture: Optional[str] = None
+    password_hash: Optional[str] = None
+    auth_provider: Optional[str] = None
     created_at: str
 
 class ProjectCreate(BaseModel):
@@ -557,7 +559,9 @@ async def create_session(session_id: str = Header(..., alias="X-Session-ID")):
 @api_router.get("/auth/me")
 async def get_me(authorization: str = Header(None)):
     user = await get_current_user(authorization)
-    return user.model_dump()
+    data = user.model_dump()
+    data.pop("password_hash", None)
+    return data
 
 @api_router.post("/auth/logout")
 async def logout(authorization: str = Header(None)):
@@ -567,6 +571,62 @@ async def logout(authorization: str = Header(None)):
     if token:
         await db.user_sessions.delete_one({"session_token": token})
     return {"success": True}
+
+
+# --- Email/Password Auth ---
+import bcrypt
+
+@api_router.post("/auth/register")
+async def register_email(request: Request):
+    body = await request.json()
+    email = body.get("email", "").strip().lower()
+    password = body.get("password", "")
+    name = body.get("name", "").strip()
+    if not email or not password or not name:
+        raise HTTPException(status_code=400, detail="Name, email and password required")
+    if len(password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+    existing = await db.users.find_one({"email": email}, {"_id": 0})
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    hashed = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+    user_id = f"user_{uuid.uuid4().hex[:12]}"
+    await db.users.insert_one({
+        "user_id": user_id, "email": email, "name": name,
+        "picture": "", "password_hash": hashed,
+        "auth_provider": "email",
+        "created_at": datetime.now(timezone.utc).isoformat()
+    })
+    session_token = f"sess_{uuid.uuid4().hex}"
+    await db.user_sessions.insert_one({
+        "user_id": user_id, "session_token": session_token,
+        "expires_at": (datetime.now(timezone.utc) + timedelta(days=7)).isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat()
+    })
+    user = await db.users.find_one({"user_id": user_id}, {"_id": 0, "password_hash": 0})
+    return {"user": user, "session_token": session_token}
+
+
+@api_router.post("/auth/login")
+async def login_email(request: Request):
+    body = await request.json()
+    email = body.get("email", "").strip().lower()
+    password = body.get("password", "")
+    if not email or not password:
+        raise HTTPException(status_code=400, detail="Email and password required")
+    user_doc = await db.users.find_one({"email": email}, {"_id": 0})
+    if not user_doc or not user_doc.get("password_hash"):
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+    if not bcrypt.checkpw(password.encode("utf-8"), user_doc["password_hash"].encode("utf-8")):
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+    session_token = f"sess_{uuid.uuid4().hex}"
+    await db.user_sessions.insert_one({
+        "user_id": user_doc["user_id"], "session_token": session_token,
+        "expires_at": (datetime.now(timezone.utc) + timedelta(days=7)).isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat()
+    })
+    user = {k: v for k, v in user_doc.items() if k != "password_hash"}
+    return {"user": user, "session_token": session_token}
 
 # Project CRUD
 @api_router.post("/projects")
