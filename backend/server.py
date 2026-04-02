@@ -1411,42 +1411,6 @@ async def transcribe_segments(project_id: str, authorization: str = Header(None)
             cmd = ["ffmpeg", "-y", "-i", input_path, "-vn", "-acodec", "pcm_s16le", "-ar", "16000", "-ac", "1", audio_path]
             subprocess.run(cmd, capture_output=True)
 
-            # Helper: Analyze voice pitch per segment for gender detection
-            def analyze_pitch(wav_path, start_sec, end_sec):
-                """Extract audio segment and analyze pitch to detect male/female voice"""
-                import wave
-                import struct
-                try:
-                    with wave.open(wav_path, 'r') as wf:
-                        rate = wf.getframerate()
-                        start_frame = int(start_sec * rate)
-                        end_frame = int(end_sec * rate)
-                        n_frames = end_frame - start_frame
-                        if n_frames <= 0:
-                            return None
-                        wf.setpos(max(0, start_frame))
-                        frames = wf.readframes(min(n_frames, rate * 10))
-                        samples = struct.unpack(f'<{len(frames)//2}h', frames)
-                        if len(samples) < 320:
-                            return None
-                        
-                        # Zero-crossing rate for pitch estimation
-                        crossings = 0
-                        for i in range(1, len(samples)):
-                            if (samples[i] >= 0) != (samples[i-1] >= 0):
-                                crossings += 1
-                        
-                        duration = len(samples) / rate
-                        if duration <= 0:
-                            return None
-                        zcr = crossings / (2 * duration)
-                        
-                        # Male voice: ~85-180 Hz, Female voice: ~165-255 Hz
-                        return "male" if zcr < 160 else "female"
-                except Exception as e:
-                    logger.warning(f"Pitch analysis failed: {e}")
-                    return None
-
             stt = OpenAISpeechToText(api_key=EMERGENT_LLM_KEY)
             with open(audio_path, "rb") as audio_file:
                 response = await stt.transcribe(file=audio_file, model="whisper-1", response_format="verbose_json")
@@ -1486,8 +1450,20 @@ async def transcribe_segments(project_id: str, authorization: str = Header(None)
                 except Exception as e:
                     logger.warning(f"SpeechBrain speaker detection failed, using fallback: {e}")
                     segments = apply_fallback_speakers(segments)
-                
-                # Step 2b: Use GPT to detect ROLES only (Boss, Wife, etc.)
+
+            actors = build_actors_from_segments(segments)
+
+            await db.projects.update_one(
+                {"project_id": project_id},
+                {"$set": {
+                    "segments": segments, "actors": actors,
+                    "detected_language": detected_lang,
+                    "status": "transcribed", "updated_at": datetime.now(timezone.utc).isoformat()
+                }}
+            )
+
+            # Step 2b: Detect ROLES in background (non-blocking, updates after save)
+            async def _detect_roles_background():
                 try:
                     detect_chat = LlmChat(
                         api_key=EMERGENT_LLM_KEY,
@@ -1515,24 +1491,25 @@ Include ALL indices 0 to """ + str(len(segments)-1) + """. role MUST be in Engli
                         start_idx = result_text.index("[")
                         end_idx = result_text.rindex("]") + 1
                         roles = json.loads(result_text[start_idx:end_idx])
-                        for r in roles:
-                            idx = r.get("idx", -1)
-                            if 0 <= idx < len(segments) and r.get("role"):
-                                segments[idx]["role"] = r["role"]
-                        logger.info(f"GPT role detection complete")
+                        # Update segments and actors in DB
+                        proj = await db.projects.find_one({"project_id": project_id}, {"_id": 0})
+                        if proj:
+                            segs = proj.get("segments", [])
+                            for r in roles:
+                                idx = r.get("idx", -1)
+                                if 0 <= idx < len(segs) and r.get("role"):
+                                    segs[idx]["role"] = r["role"]
+                            new_actors = build_actors_from_segments(segs)
+                            await db.projects.update_one(
+                                {"project_id": project_id},
+                                {"$set": {"segments": segs, "actors": new_actors, "updated_at": datetime.now(timezone.utc).isoformat()}}
+                            )
+                            logger.info(f"GPT role detection complete (background)")
                 except Exception as e:
                     logger.warning(f"GPT role detection failed (non-critical): {e}")
+            
+            asyncio.create_task(_detect_roles_background())
 
-            actors = build_actors_from_segments(segments)
-
-            await db.projects.update_one(
-                {"project_id": project_id},
-                {"$set": {
-                    "segments": segments, "actors": actors,
-                    "detected_language": detected_lang,
-                    "status": "transcribed", "updated_at": datetime.now(timezone.utc).isoformat()
-                }}
-            )
             return await db.projects.find_one({"project_id": project_id}, {"_id": 0})
 
     except Exception as e:
@@ -2723,6 +2700,8 @@ if os.path.isdir(FRONTEND_BUILD):
 @app.on_event("startup")
 async def startup():
     logger.info("Storage initialized (local)")
+    # Preload SpeechBrain model in background to speed up first use
+    asyncio.get_event_loop().run_in_executor(None, get_speaker_classifier)
     # Start auto-cleanup background task
     asyncio.create_task(auto_cleanup_old_projects())
 
