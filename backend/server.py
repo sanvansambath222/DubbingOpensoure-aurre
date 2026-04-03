@@ -2663,6 +2663,11 @@ async def auto_process(project_id: str, speed: int = Query(2), target_language: 
     if not project.get("original_file_path"):
         raise HTTPException(status_code=400, detail="No file uploaded")
     
+    # Prevent double-click: skip if already processing
+    qs = queue_status.get(project_id, {})
+    if qs.get("status") == "processing":
+        return {"status": "processing", "message": "Already processing. Please wait..."}
+    
     import time as _time
     queue_status[project_id] = {"position": 0, "status": "processing", "step": "starting", "progress": 0, "total": 3, "started_at": _time.time()}
     
