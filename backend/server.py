@@ -267,9 +267,11 @@ def get_speaker_classifier():
     global _speaker_classifier
     if _speaker_classifier is None:
         from speechbrain.inference.speaker import EncoderClassifier
+        cache_dir = os.path.join(str(Path.home()), ".cache", "spkrec-ecapa")
+        os.makedirs(cache_dir, exist_ok=True)
         _speaker_classifier = EncoderClassifier.from_hparams(
             source="speechbrain/spkrec-ecapa-voxceleb",
-            savedir="/root/.cache/spkrec-ecapa"
+            savedir=cache_dir
         )
         logger.info("SpeechBrain ECAPA-TDNN speaker model loaded")
     return _speaker_classifier
