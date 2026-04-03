@@ -171,7 +171,7 @@ const VoicePickerModal = ({ open, onClose, onSelect, actorGender, actorName, tar
                 {allVoices ? `${allVoices.total_voices} voices, ${allVoices.total_languages} languages` : 'Loading...'}
               </p>
               <span className={`text-[10px] font-bold px-2 py-0.5 rounded-sm ${d ? 'bg-emerald-900/40 text-emerald-400' : 'bg-emerald-50 text-emerald-700'}`}>
-                ALL FREE
+                Open Source
               </span>
             </div>
           </div>
@@ -259,7 +259,7 @@ const VoicePickerModal = ({ open, onClose, onSelect, actorGender, actorName, tar
           {/* Footer */}
           <div className={`px-5 py-3 border-t flex items-center justify-between ${d ? 'border-zinc-700' : 'border-black/10'}`}>
             <p className={`text-[10px] ${d ? 'text-zinc-500' : 'text-zinc-400'}`}>
-              Open source voices - All languages - Free unlimited
+              Open source voices - All languages
             </p>
             <button onClick={onClose} data-testid="voice-picker-cancel" className={`px-4 py-1.5 text-xs font-semibold rounded-sm transition-colors ${d ? 'bg-zinc-800 text-white hover:bg-zinc-700' : 'bg-zinc-100 text-zinc-950 hover:bg-zinc-200'}`}>
               Cancel
@@ -308,7 +308,7 @@ const VoiceButton = ({ voice, isMale, d, isPlaying, isLoading, onSelect, onPrevi
             <Play className="w-3 h-3" weight="fill" />
           )}
         </button>
-        <span className="text-[8px] text-emerald-500 font-bold shrink-0">FREE</span>
+        <span className="text-[8px] text-emerald-500 font-bold shrink-0">EDGE</span>
       </>
     )}
   </div>
