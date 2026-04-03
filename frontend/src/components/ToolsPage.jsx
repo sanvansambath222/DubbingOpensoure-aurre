@@ -459,13 +459,13 @@ const ConvertTool = ({ token, d }) => {
   );
 };
 
-// ---- Add Logo Tool (Drag & Drop) ----
+// ---- Add Logo Tool (Drag & Drop Canvas) ----
 const AddLogoTool = ({ token, d }) => {
   const [video, setVideo] = useState(null);
   const [logo, setLogo] = useState(null);
   const [logoPreview, setLogoPreview] = useState(null);
   const [videoPreview, setVideoPreview] = useState(null);
-  const [logoPos, setLogoPos] = useState({ x: 80, y: 5 }); // percent
+  const [logoPos, setLogoPos] = useState({ x: 80, y: 5 });
   const [logoSize, setLogoSize] = useState(15);
   const [opacity, setOpacity] = useState(100);
   const [processing, setProcessing] = useState(false);
@@ -475,42 +475,26 @@ const AddLogoTool = ({ token, d }) => {
 
   const onVideoSelect = (f) => {
     setVideo(f);
-    if (f) {
-      const url = URL.createObjectURL(f);
-      setVideoPreview(url);
-    } else { setVideoPreview(null); }
+    if (f) { setVideoPreview(URL.createObjectURL(f)); } else { setVideoPreview(null); }
   };
-
   const onLogoSelect = (f) => {
     setLogo(f);
-    if (f) {
-      const reader = new FileReader();
-      reader.onload = (e) => setLogoPreview(e.target.result);
-      reader.readAsDataURL(f);
-    } else { setLogoPreview(null); }
+    if (f) { const r = new FileReader(); r.onload = (e) => setLogoPreview(e.target.result); r.readAsDataURL(f); } else { setLogoPreview(null); }
   };
 
-  const handleMouseDown = (e) => {
-    e.preventDefault();
-    setDragging(true);
-  };
-
+  const handleMouseDown = (e) => { e.preventDefault(); setDragging(true); };
   const handleMouseMove = useCallback((e) => {
     if (!dragging || !previewRef.current) return;
     const rect = previewRef.current.getBoundingClientRect();
-    const x = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
-    const y = Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100));
-    setLogoPos({ x: Math.round(x), y: Math.round(y) });
+    setLogoPos({ x: Math.round(Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100))),
+                 y: Math.round(Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100))) });
   }, [dragging]);
-
   const handleMouseUp = useCallback(() => { setDragging(false); }, []);
-
   const handleTouchMove = useCallback((e) => {
     if (!previewRef.current || !e.touches[0]) return;
     const rect = previewRef.current.getBoundingClientRect();
-    const x = Math.max(0, Math.min(100, ((e.touches[0].clientX - rect.left) / rect.width) * 100));
-    const y = Math.max(0, Math.min(100, ((e.touches[0].clientY - rect.top) / rect.height) * 100));
-    setLogoPos({ x: Math.round(x), y: Math.round(y) });
+    setLogoPos({ x: Math.round(Math.max(0, Math.min(100, ((e.touches[0].clientX - rect.left) / rect.width) * 100))),
+                 y: Math.round(Math.max(0, Math.min(100, ((e.touches[0].clientY - rect.top) / rect.height) * 100))) });
   }, []);
 
   const handleProcess = async () => {
@@ -528,70 +512,85 @@ const AddLogoTool = ({ token, d }) => {
     finally { setProcessing(false); }
   };
 
+  const quickPos = (x, y) => setLogoPos({ x, y });
+
   return (
-    <div className="space-y-4"
-      onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}
-      onTouchMove={handleTouchMove} onTouchEnd={handleMouseUp}>
-      <DropZone accept="video/*" label="Upload Video" icon={FileVideo} file={video} onFile={onVideoSelect} d={d} />
-      <DropZone accept="image/*" label="Upload Logo (PNG recommended)" icon={ImageIcon} file={logo} onFile={onLogoSelect} d={d} />
-
-      {/* Preview Area - Drag logo here */}
-      {(videoPreview || logoPreview) && (
-        <div className={`rounded-lg overflow-hidden border ${d?'border-zinc-700':'border-zinc-300'}`}>
-          <div className={`text-[10px] px-3 py-1.5 font-medium uppercase tracking-wider ${d?'bg-zinc-800 text-zinc-500':'bg-zinc-100 text-zinc-500'}`}>
-            Drag logo to position it
-          </div>
-          <div ref={previewRef} className="relative w-full bg-black" style={{ aspectRatio: '16/9', cursor: dragging ? 'grabbing' : 'default' }}>
-            {videoPreview && (
-              <video src={videoPreview} muted className="w-full h-full object-contain" />
-            )}
-            {!videoPreview && (
-              <div className="w-full h-full flex items-center justify-center">
-                <span className={`text-xs ${d?'text-zinc-600':'text-zinc-400'}`}>Upload video to see preview</span>
-              </div>
-            )}
-            {logoPreview && (
-              <div
-                onMouseDown={handleMouseDown}
-                onTouchStart={handleMouseDown}
-                style={{
-                  position: 'absolute',
-                  left: `${logoPos.x}%`,
-                  top: `${logoPos.y}%`,
-                  transform: 'translate(-50%, -50%)',
-                  width: `${logoSize}%`,
-                  opacity: opacity / 100,
-                  cursor: dragging ? 'grabbing' : 'grab',
-                  zIndex: 10,
-                  userSelect: 'none',
-                  touchAction: 'none',
-                }}
-                data-testid="logo-draggable"
-              >
-                <img src={logoPreview} alt="Logo" className="w-full h-auto pointer-events-none" draggable={false}
-                  style={{ filter: `drop-shadow(0 2px 4px rgba(0,0,0,0.5))` }} />
-                <div className={`absolute -inset-1 border-2 border-dashed rounded ${dragging ? 'border-pink-400' : 'border-white/50'} pointer-events-none`} />
-              </div>
-            )}
+    <div className="space-y-4" onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp} onTouchMove={handleTouchMove} onTouchEnd={handleMouseUp}>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Left: Big Canvas */}
+        <div className="lg:col-span-2">
+          <div className={`rounded-xl overflow-hidden border ${d?'border-zinc-700':'border-zinc-200'}`}>
+            <div className={`flex items-center justify-between px-3 py-2 ${d?'bg-zinc-800':'bg-zinc-100'}`}>
+              <span className={`text-[10px] font-semibold uppercase tracking-wider ${d?'text-zinc-400':'text-zinc-500'}`}>Preview Canvas — Drag logo to position</span>
+              <span className={`text-[10px] font-mono ${d?'text-zinc-500':'text-zinc-400'}`}>X:{logoPos.x}% Y:{logoPos.y}%</span>
+            </div>
+            <div ref={previewRef} className={`relative w-full ${d?'bg-zinc-900':'bg-zinc-950'}`} style={{ aspectRatio: '16/9', cursor: dragging ? 'grabbing' : 'crosshair' }}>
+              {videoPreview ? (
+                <video src={videoPreview} muted className="w-full h-full object-contain" />
+              ) : (
+                <div className="w-full h-full flex flex-col items-center justify-center gap-2">
+                  <FileVideo className="w-8 h-8 text-zinc-700" />
+                  <span className="text-xs text-zinc-600">Upload video to preview</span>
+                </div>
+              )}
+              {logoPreview && (
+                <div onMouseDown={handleMouseDown} onTouchStart={handleMouseDown}
+                  style={{ position: 'absolute', left: `${logoPos.x}%`, top: `${logoPos.y}%`, transform: 'translate(-50%, -50%)', width: `${logoSize}%`, opacity: opacity / 100, cursor: dragging ? 'grabbing' : 'grab', zIndex: 10, userSelect: 'none', touchAction: 'none' }}
+                  data-testid="logo-draggable">
+                  <img src={logoPreview} alt="Logo" className="w-full h-auto pointer-events-none" draggable={false} style={{ filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.6))' }} />
+                  <div className={`absolute -inset-1 border-2 border-dashed rounded-sm ${dragging ? 'border-pink-400' : 'border-white/40 hover:border-white/70'} pointer-events-none transition-colors`} />
+                </div>
+              )}
+              {/* Grid lines */}
+              <div className="absolute inset-0 pointer-events-none" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px)', backgroundSize: '10% 10%' }} />
+            </div>
           </div>
         </div>
-      )}
 
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className={`block text-xs font-medium mb-1.5 ${d?'text-zinc-400':'text-zinc-600'}`}>Logo Size: {logoSize}%</label>
-          <input type="range" min={3} max={60} value={logoSize} onChange={e => setLogoSize(Number(e.target.value))} className="w-full accent-pink-500" />
-        </div>
-        <div>
-          <label className={`block text-xs font-medium mb-1.5 ${d?'text-zinc-400':'text-zinc-600'}`}>Opacity: {opacity}%</label>
-          <input type="range" min={10} max={100} value={opacity} onChange={e => setOpacity(Number(e.target.value))} className="w-full accent-pink-500" />
+        {/* Right: Controls */}
+        <div className="space-y-3">
+          <DropZone accept="video/*" label="Upload Video" icon={FileVideo} file={video} onFile={onVideoSelect} d={d} />
+          <DropZone accept="image/*" label="Upload Logo (PNG)" icon={ImageIcon} file={logo} onFile={onLogoSelect} d={d} />
+
+          {/* Quick Position Buttons */}
+          <div>
+            <label className={`block text-[10px] font-semibold uppercase tracking-wider mb-2 ${d?'text-zinc-500':'text-zinc-500'}`}>Quick Position</label>
+            <div className="grid grid-cols-3 gap-1.5">
+              {[
+                { label: "Top Left", x: 8, y: 8 },
+                { label: "Top Center", x: 50, y: 8 },
+                { label: "Top Right", x: 92, y: 8 },
+                { label: "Mid Left", x: 8, y: 50 },
+                { label: "Center", x: 50, y: 50 },
+                { label: "Mid Right", x: 92, y: 50 },
+                { label: "Bot Left", x: 8, y: 92 },
+                { label: "Bot Center", x: 50, y: 92 },
+                { label: "Bot Right", x: 92, y: 92 },
+              ].map((p) => (
+                <button key={p.label} onClick={() => quickPos(p.x, p.y)}
+                  className={`text-[10px] py-1.5 rounded-md transition-all ${logoPos.x === p.x && logoPos.y === p.y ? 'bg-pink-500 text-white font-semibold' : d ? 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700' : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'}`}>
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Size Slider */}
+          <div>
+            <label className={`block text-[10px] font-semibold uppercase tracking-wider mb-1.5 ${d?'text-zinc-500':'text-zinc-500'}`}>Logo Size: {logoSize}%</label>
+            <input type="range" min={3} max={60} value={logoSize} onChange={e => setLogoSize(Number(e.target.value))} className="w-full accent-pink-500" />
+          </div>
+
+          {/* Opacity Slider */}
+          <div>
+            <label className={`block text-[10px] font-semibold uppercase tracking-wider mb-1.5 ${d?'text-zinc-500':'text-zinc-500'}`}>Opacity: {opacity}%</label>
+            <input type="range" min={10} max={100} value={opacity} onChange={e => setOpacity(Number(e.target.value))} className="w-full accent-pink-500" />
+          </div>
+
+          <ProcessBtn onClick={handleProcess} processing={processing} label="Add Logo & Download" color="from-pink-500 to-rose-600" d={d} />
+          {result && <DownloadBtn url={result} label="Download Video" d={d} />}
         </div>
       </div>
-      <div className={`text-[10px] text-center ${d?'text-zinc-600':'text-zinc-400'}`}>
-        Position: X={logoPos.x}% Y={logoPos.y}%
-      </div>
-      <ProcessBtn onClick={handleProcess} processing={processing} label="Add Logo" color="from-pink-500 to-rose-600" d={d} />
-      {result && <DownloadBtn url={result} label="Download Video" d={d} />}
     </div>
   );
 };
@@ -670,14 +669,14 @@ const ToolsPage = () => {
             <button onClick={() => setActiveTool(null)} className={`flex items-center gap-1.5 text-sm mb-6 transition-colors ${d?'text-zinc-400 hover:text-white':'text-zinc-500 hover:text-zinc-900'}`} data-testid="tools-back-btn">
               <ArrowLeft className="w-4 h-4" /> Back to Tools
             </button>
-            <div className={`max-w-lg mx-auto rounded-xl border overflow-hidden ${d?'bg-zinc-900/80 border-zinc-800':'bg-white border-zinc-200 shadow-sm'}`}>
-              <div className={`p-5 bg-gradient-to-r ${activeToolInfo.color} flex items-center gap-3`}>
-                <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-sm">
-                  <activeToolInfo.icon className="w-5 h-5 text-white" weight="bold" />
+            <div className={`${activeTool === 'add-logo' ? 'max-w-4xl' : 'max-w-lg'} mx-auto rounded-xl border overflow-hidden ${d?'bg-zinc-900/80 border-zinc-800':'bg-white border-zinc-200 shadow-sm'}`}>
+              <div className={`p-4 bg-gradient-to-r ${activeToolInfo.color} flex items-center gap-3`}>
+                <div className="w-9 h-9 rounded-lg bg-white/20 flex items-center justify-center backdrop-blur-sm">
+                  <activeToolInfo.icon className="w-4 h-4 text-white" weight="bold" />
                 </div>
                 <div>
-                  <div className="text-base font-bold text-white">{activeToolInfo.name}</div>
-                  <div className="text-xs text-white/70">{activeToolInfo.desc}</div>
+                  <div className="text-sm font-bold text-white">{activeToolInfo.name}</div>
+                  <div className="text-[11px] text-white/70">{activeToolInfo.desc}</div>
                 </div>
               </div>
               <div className="p-5">
