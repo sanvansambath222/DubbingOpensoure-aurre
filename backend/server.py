@@ -17,9 +17,15 @@ import tempfile
 import json
 import asyncio
 import io
+import shutil
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
+
+# Auto-install ffmpeg if missing (survives container restarts)
+if not shutil.which("ffmpeg"):
+    subprocess.run(["apt-get", "update", "-qq"], capture_output=True)
+    subprocess.run(["apt-get", "install", "-y", "-qq", "ffmpeg"], capture_output=True)
 
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
