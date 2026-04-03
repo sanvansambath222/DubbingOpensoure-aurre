@@ -52,7 +52,7 @@ const SharedProject = () => {
           <div className="flex items-center gap-3">
             <ThemeToggle />
             <a href="/" className={`px-4 py-2 text-xs font-semibold rounded-sm transition-colors ${d?'bg-zinc-800 text-white hover:bg-zinc-700':'bg-zinc-100 text-zinc-950 hover:bg-zinc-200'}`}>
-              Try it free
+              Try it now
             </a>
           </div>
         </div>

@@ -70,11 +70,11 @@ const LandingPage = () => {
             Any Language to Any Language<br /><span className={d?'text-zinc-500':'text-zinc-400'}>Video Dubbing</span>
           </h1>
           <p className={`text-base max-w-xl mx-auto mb-10 leading-relaxed ${d?'text-zinc-400':'text-zinc-500'}`}>
-            Auto-detect any language. Dub to 20+ languages including Khmer, Thai, Korean, Japanese, English & more. Free TTS voices.
+            Auto-detect any language. Dub to 20+ languages including Khmer, Thai, Korean, Japanese, English & more.
           </p>
           <button onClick={() => setShowAuth(true)} data-testid="get-started-btn"
             className={`px-8 py-3.5 font-semibold rounded-sm transition-colors text-sm ${d?'bg-white text-zinc-950 hover:bg-zinc-200':'bg-zinc-950 text-white hover:bg-zinc-800'}`}>
-            Get Started Free
+            Get Started
           </button>
         </motion.div>
         <motion.div initial={{opacity:0,y:40}} animate={{opacity:1,y:0}} transition={{delay:0.3,duration:0.6}}
