@@ -729,6 +729,7 @@ const Editor = () => {
                 <button onClick={() => fileInputRef.current?.click()} disabled={!!processingMsg} data-testid="upload-btn"
                   className={`w-full py-4 border border-dashed rounded-sm text-xs transition-all ${d?'border-zinc-700 text-zinc-500 hover:border-zinc-500 hover:text-zinc-300':'border-black/10 text-zinc-500 hover:border-zinc-400 hover:text-zinc-700'}`}>
                   <Upload className="w-5 h-5 mx-auto mb-1" /> Click to upload video
+                  <p className={`text-[9px] mt-1 ${d?'text-zinc-600':'text-zinc-400'}`}>Max 10 minutes, 500MB</p>
                 </button>
               )}
             </div>

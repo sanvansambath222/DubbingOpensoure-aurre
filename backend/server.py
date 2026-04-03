@@ -1388,9 +1388,23 @@ async def upload_file(project_id: str, file: UploadFile = File(...), authorizati
     if file_type == 'unknown':
         raise HTTPException(status_code=400, detail="Unsupported file type")
     data = await file.read()
+    # Check file size limit (500MB)
+    if len(data) > 500 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File too large. Max 500MB")
     ext = file.filename.split(".")[-1] if "." in file.filename else "bin"
     path = f"{APP_NAME}/uploads/{user.user_id}/{project_id}/{uuid.uuid4().hex}.{ext}"
     result = put_object(path, data, file.content_type or "application/octet-stream")
+    # Check video/audio duration limit (10 minutes)
+    MAX_DURATION_SECONDS = 600  # 10 minutes
+    local_path = result["path"]
+    duration = get_media_duration(local_path)
+    if duration > MAX_DURATION_SECONDS:
+        # Delete the uploaded file
+        try:
+            delete_object(local_path)
+        except Exception:
+            pass
+        raise HTTPException(status_code=400, detail=f"Video too long ({int(duration // 60)}min {int(duration % 60)}s). Max 10 minutes.")
     await db.projects.update_one(
         {"project_id": project_id},
         {"$set": {
@@ -2839,6 +2853,14 @@ async def auto_process(project_id: str, speed: int = Query(2), target_language: 
 TOOLS_OUTPUT_DIR = LOCAL_STORAGE_DIR / "tools_output"
 TOOLS_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
+MAX_VIDEO_DURATION = 600  # 10 minutes
+
+async def check_video_duration(video_path: str):
+    """Raise error if video is longer than 10 minutes."""
+    duration = get_media_duration(video_path)
+    if duration > MAX_VIDEO_DURATION:
+        raise HTTPException(status_code=400, detail=f"Video too long ({int(duration // 60)}min {int(duration % 60)}s). Max 10 minutes.")
+
 # 1. Add Subtitles
 @api_router.post("/tools/add-subtitles")
 async def tool_add_subtitles(video: UploadFile = File(...), srt: UploadFile = File(...),
@@ -2852,6 +2874,7 @@ async def tool_add_subtitles(video: UploadFile = File(...), srt: UploadFile = Fi
         out_path = str(TOOLS_OUTPUT_DIR / out_name)
         with open(vid_path, "wb") as f: f.write(await video.read())
         with open(srt_path, "wb") as f: f.write(await srt.read())
+        await check_video_duration(vid_path)
         y_pos = "10" if position == "top" else "(h-text_h)/2" if position == "center" else "h-th-20"
         style = f"FontSize={font_size},PrimaryColour=&H00{'FFFFFF' if font_color=='white' else 'FFFF00' if font_color=='yellow' else '00FF00' if font_color=='green' else '00FFFF'}&"
         cmd = ["ffmpeg", "-y", "-i", vid_path, "-vf", f"subtitles={srt_path}:force_style='{style}'", "-c:a", "copy", out_path]
@@ -2919,6 +2942,7 @@ async def tool_trim_video(video: UploadFile = File(...), start_time: str = Form(
         out_name = f"trimmed_{uuid.uuid4().hex[:8]}.{ext}"
         out_path = str(TOOLS_OUTPUT_DIR / out_name)
         with open(vid_path, "wb") as f: f.write(await video.read())
+        await check_video_duration(vid_path)
         cmd = ["ffmpeg", "-y", "-i", vid_path, "-ss", start_time, "-to", end_time, "-c", "copy", out_path]
         r = subprocess.run(cmd, capture_output=True, text=True)
         if r.returncode != 0:
@@ -2936,6 +2960,7 @@ async def tool_ai_clips(video: UploadFile = File(...), clip_count: int = Form(3)
         vid_path = os.path.join(tmp, f"input_{video.filename}")
         audio_path = os.path.join(tmp, "audio.wav")
         with open(vid_path, "wb") as f: f.write(await video.read())
+        await check_video_duration(vid_path)
         # Get duration
         duration = get_media_duration(vid_path)
         if duration < clip_duration:
@@ -3015,6 +3040,7 @@ async def tool_resize_video(video: UploadFile = File(...), resolution: str = For
         out_name = f"resized_{uuid.uuid4().hex[:8]}.mp4"
         out_path = str(TOOLS_OUTPUT_DIR / out_name)
         with open(vid_path, "wb") as f: f.write(await video.read())
+        await check_video_duration(vid_path)
         cmd = ["ffmpeg", "-y", "-i", vid_path, "-vf", f"scale={resolution}:force_original_aspect_ratio=decrease,pad={resolution}:(ow-iw)/2:(oh-ih)/2", "-c:a", "copy", out_path]
         r = subprocess.run(cmd, capture_output=True, text=True)
         if r.returncode != 0:
@@ -3031,6 +3057,7 @@ async def tool_convert_video(video: UploadFile = File(...), output_format: str =
         out_name = f"converted_{uuid.uuid4().hex[:8]}.{output_format}"
         out_path = str(TOOLS_OUTPUT_DIR / out_name)
         with open(vid_path, "wb") as f: f.write(await video.read())
+        await check_video_duration(vid_path)
         if output_format in ("mp3", "wav"):
             cmd = ["ffmpeg", "-y", "-i", vid_path, "-vn", out_path]
         else:
@@ -3068,6 +3095,7 @@ async def tool_voice_replace(video: UploadFile = File(...), extra_text: str = Fo
         bg_path = os.path.join(tmp, "background.wav")
         tts_path = os.path.join(tmp, "tts_output.wav")
         with open(vid_path, "wb") as f: f.write(await video.read())
+        await check_video_duration(vid_path)
         
         # Step 1: Extract audio
         subprocess.run(["ffmpeg", "-y", "-i", vid_path, "-vn", "-acodec", "pcm_s16le", "-ar", "16000", "-ac", "1", audio_path], capture_output=True)
@@ -3159,6 +3187,7 @@ async def tool_add_logo(video: UploadFile = File(...), logo: UploadFile = File(.
         out_name = f"logo_{uuid.uuid4().hex[:8]}.mp4"
         out_path = str(TOOLS_OUTPUT_DIR / out_name)
         with open(vid_path, "wb") as f: f.write(await video.read())
+        await check_video_duration(vid_path)
         with open(logo_path, "wb") as f: f.write(await logo.read())
         
         # Convert percent position to FFmpeg overlay expression
