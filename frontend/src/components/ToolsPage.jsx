@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
@@ -90,18 +90,42 @@ const DownloadBtn = ({ url, label, d }) => (
 const VoiceReplaceTool = ({ token, d }) => {
   const [video, setVideo] = useState(null);
   const [extraText, setExtraText] = useState("");
-  const [voice, setVoice] = useState("mms_khmer");
+  const [voice, setVoice] = useState("dara");
   const [targetLang, setTargetLang] = useState("km");
   const [processing, setProcessing] = useState(false);
   const [progress, setProgress] = useState("");
   const [result, setResult] = useState(null);
+  const [allVoices, setAllVoices] = useState([]);
+  const [voiceSearch, setVoiceSearch] = useState("");
 
-  const voices = [
-    { value: "mms_khmer", label: "Meta AI (Boy) - Khmer" },
-    { value: "mms_khmer_f", label: "Meta AI (Girl) - Khmer" },
-    { value: "sophea", label: "Sreymom (Girl) - Khmer" },
-    { value: "dara", label: "Piseth (Boy) - Khmer" },
-  ];
+  useEffect(() => {
+    axios.get(`${API}/edge-voices`).then(r => {
+      const flat = [];
+      flat.push({ value: "mms_khmer", label: "Meta AI (Boy) - Khmer" });
+      flat.push({ value: "mms_khmer_f", label: "Meta AI (Girl) - Khmer" });
+      flat.push({ value: "dara", label: "Piseth (Boy) - Khmer" });
+      flat.push({ value: "sophea", label: "Sreymom (Girl) - Khmer" });
+      for (const lang of (r.data.languages || [])) {
+        if (lang.code === "km") continue;
+        const langName = lang.locale?.split("-").slice(0,2).join("-") || lang.code;
+        for (const v of [...(lang.male || []), ...(lang.female || [])]) {
+          flat.push({ value: v.voice, label: `${v.name} - ${langName}` });
+        }
+      }
+      setAllVoices(flat);
+    }).catch(() => {
+      setAllVoices([
+        { value: "dara", label: "Piseth (Boy) - Khmer" },
+        { value: "sophea", label: "Sreymom (Girl) - Khmer" },
+        { value: "mms_khmer", label: "Meta AI (Boy) - Khmer" },
+        { value: "mms_khmer_f", label: "Meta AI (Girl) - Khmer" },
+      ]);
+    });
+  }, []);
+
+  const filteredVoices = voiceSearch
+    ? allVoices.filter(v => v.label.toLowerCase().includes(voiceSearch.toLowerCase()))
+    : allVoices.slice(0, 50);
 
   const handleProcess = async () => {
     if (!video) return toast.error("Upload a video or audio file");
@@ -130,7 +154,15 @@ const VoiceReplaceTool = ({ token, d }) => {
         className={`w-full text-sm p-3 rounded-lg border resize-none transition-colors ${d?'bg-zinc-800/80 border-zinc-700 text-white placeholder:text-zinc-600 focus:border-zinc-500':'bg-white border-zinc-300 placeholder:text-zinc-400 focus:border-zinc-400'} outline-none`}
         data-testid="voice-replace-extra-text" />
       <div className="grid grid-cols-2 gap-3">
-        <Select label="Voice" value={voice} onChange={setVoice} options={voices} d={d} />
+        <div>
+          <label className={`block text-xs font-medium mb-1.5 ${d?'text-zinc-400':'text-zinc-600'}`}>Voice</label>
+          <input type="text" placeholder="Search voice..." value={voiceSearch} onChange={e => setVoiceSearch(e.target.value)}
+            className={`w-full text-xs p-2 rounded-lg border mb-1 ${d?'bg-zinc-800/80 border-zinc-700 text-white placeholder:text-zinc-600':'bg-white border-zinc-300 placeholder:text-zinc-400'} outline-none`} />
+          <select value={voice} onChange={e => setVoice(e.target.value)}
+            className={`w-full text-xs p-2 rounded-lg border ${d?'bg-zinc-800/80 border-zinc-700 text-white':'bg-white border-zinc-300'} outline-none`}>
+            {filteredVoices.map(v => <option key={v.value} value={v.value}>{v.label}</option>)}
+          </select>
+        </div>
         <Select label="Language" value={targetLang} onChange={setTargetLang} options={[
           {value:"km",label:"Khmer"},{value:"en",label:"English"},{value:"zh",label:"Chinese"},{value:"th",label:"Thai"},{value:"vi",label:"Vietnamese"},{value:"ko",label:"Korean"},{value:"ja",label:"Japanese"}
         ]} d={d} />
@@ -329,23 +361,40 @@ const AIClipsTool = ({ token, d }) => {
 // ---- TTS Tool ----
 const TTSTool = ({ token, d }) => {
   const [text, setText] = useState("");
-  const [voice, setVoice] = useState("mms_khmer");
+  const [voice, setVoice] = useState("dara");
   const [speed, setSpeed] = useState(0);
   const [processing, setProcessing] = useState(false);
   const [audioUrl, setAudioUrl] = useState(null);
+  const [allVoices, setAllVoices] = useState([]);
+  const [voiceSearch, setVoiceSearch] = useState("");
 
-  const voices = [
-    { value: "mms_khmer", label: "Meta AI (Boy) - Khmer" },
-    { value: "mms_khmer_f", label: "Meta AI (Girl) - Khmer" },
-    { value: "sophea", label: "Sreymom (Girl) - Khmer" },
-    { value: "dara", label: "Piseth (Boy) - Khmer" },
-    { value: "en_m1", label: "Guy (Boy) - English" },
-    { value: "en_f1", label: "Jenny (Girl) - English" },
-    { value: "zh_m1", label: "YunXi (Boy) - Chinese" },
-    { value: "zh_f1", label: "XiaoXiao (Girl) - Chinese" },
-    { value: "th_m1", label: "Niwat (Boy) - Thai" },
-    { value: "th_f1", label: "Premwadee (Girl) - Thai" },
-  ];
+  useEffect(() => {
+    axios.get(`${API}/edge-voices`).then(r => {
+      const flat = [];
+      flat.push({ value: "mms_khmer", label: "Meta AI (Boy) - Khmer" });
+      flat.push({ value: "mms_khmer_f", label: "Meta AI (Girl) - Khmer" });
+      flat.push({ value: "dara", label: "Piseth (Boy) - Khmer" });
+      flat.push({ value: "sophea", label: "Sreymom (Girl) - Khmer" });
+      for (const lang of (r.data.languages || [])) {
+        if (lang.code === "km") continue;
+        const langName = lang.locale?.split("-").slice(0,2).join("-") || lang.code;
+        for (const v of [...(lang.male || []), ...(lang.female || [])]) {
+          flat.push({ value: v.voice, label: `${v.name} - ${langName}` });
+        }
+      }
+      setAllVoices(flat);
+    }).catch(() => {
+      setAllVoices([
+        { value: "dara", label: "Piseth (Boy) - Khmer" },
+        { value: "sophea", label: "Sreymom (Girl) - Khmer" },
+        { value: "mms_khmer", label: "Meta AI (Boy) - Khmer" },
+      ]);
+    });
+  }, []);
+
+  const filteredVoices = voiceSearch
+    ? allVoices.filter(v => v.label.toLowerCase().includes(voiceSearch.toLowerCase()))
+    : allVoices.slice(0, 50);
 
   const handleGenerate = async () => {
     if (!text.trim()) return toast.error("Type some text");
@@ -364,7 +413,15 @@ const TTSTool = ({ token, d }) => {
       <textarea value={text} onChange={e => setText(e.target.value)} rows={4} placeholder="Type text here..."
         className={`w-full text-sm p-3 rounded-lg border resize-none ${d?'bg-zinc-800/80 border-zinc-700 text-white placeholder:text-zinc-600':'bg-white border-zinc-300 placeholder:text-zinc-400'} outline-none`} data-testid="tts-text-input" />
       <div className="grid grid-cols-2 gap-3">
-        <Select label="Voice" value={voice} onChange={setVoice} options={voices} d={d} />
+        <div>
+          <label className={`block text-xs font-medium mb-1.5 ${d?'text-zinc-400':'text-zinc-600'}`}>Voice</label>
+          <input type="text" placeholder="Search voice..." value={voiceSearch} onChange={e => setVoiceSearch(e.target.value)}
+            className={`w-full text-xs p-2 rounded-lg border mb-1 ${d?'bg-zinc-800/80 border-zinc-700 text-white placeholder:text-zinc-600':'bg-white border-zinc-300 placeholder:text-zinc-400'} outline-none`} />
+          <select value={voice} onChange={e => setVoice(e.target.value)}
+            className={`w-full text-xs p-2 rounded-lg border ${d?'bg-zinc-800/80 border-zinc-700 text-white':'bg-white border-zinc-300'} outline-none`}>
+            {filteredVoices.map(v => <option key={v.value} value={v.value}>{v.label}</option>)}
+          </select>
+        </div>
         <div>
           <label className={`block text-xs font-medium mb-1.5 ${d?'text-zinc-400':'text-zinc-600'}`}>Speed: {speed >= 0 ? '+' : ''}{speed}%</label>
           <input type="range" min={-50} max={50} value={speed} onChange={e => setSpeed(Number(e.target.value))} className="w-full mt-2 accent-emerald-500" />

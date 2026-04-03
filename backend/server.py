@@ -225,7 +225,7 @@ def build_actors_from_segments(segments: list) -> list:
         label = f"{role} ({gender_tag})" if role else gender_tag
         actors.append({
             "id": spk, "label": label, "gender": info["gender"],
-            "role": role, "voice": "mms_khmer" if info["gender"] == "male" else "sophea",
+            "role": role, "voice": "dara" if info["gender"] == "male" else "sophea",
             "custom_voice": None, "total_speaking_time": round(info["total_time"], 1),
             "line_count": info["line_count"],
             "first_start": round(info["first_start"], 1),
@@ -244,7 +244,7 @@ def apply_speaker_detections(segments: list, detections: list) -> list:
             role = d.get("role", "")
             segments[idx]["gender"] = gender
             segments[idx]["speaker"] = speaker
-            segments[idx]["voice"] = "mms_khmer" if gender == "male" else "sophea"
+            segments[idx]["voice"] = "dara" if gender == "male" else "sophea"
             if role:
                 segments[idx]["role"] = role
     return segments
@@ -255,7 +255,7 @@ def apply_fallback_speakers(segments: list) -> list:
     for i in range(len(segments)):
         segments[i]["speaker"] = f"SPEAKER_{str(i % 2).zfill(2)}"
         segments[i]["gender"] = "female" if i % 2 == 0 else "male"
-        segments[i]["voice"] = "sophea" if i % 2 == 0 else "mms_khmer"
+        segments[i]["voice"] = "sophea" if i % 2 == 0 else "dara"
     return segments
 
 
@@ -364,7 +364,7 @@ def detect_speakers_audio(audio_path: str, segments: list) -> list:
         for seg in segments:
             seg["speaker"] = "SPEAKER_00"
             seg["gender"] = "male"
-            seg["voice"] = "mms_khmer"
+            seg["voice"] = "dara"
         return segments
 
     emb_matrix = np.array(valid_embs)
@@ -440,7 +440,7 @@ def detect_speakers_audio(audio_path: str, segments: list) -> list:
     for seg in segments:
         gender = speaker_gender.get(seg["speaker"], "female")
         seg["gender"] = gender
-        seg["voice"] = "mms_khmer" if gender == "male" else "sophea"
+        seg["voice"] = "dara" if gender == "male" else "sophea"
 
     return segments
 
@@ -837,6 +837,9 @@ EDGE_TTS_VOICES = {
 
 def get_edge_voice(lang_code, gender, voice_id=None):
     """Get the Edge TTS voice name for a language and gender."""
+    # If voice_id looks like a full Edge TTS voice name (e.g. en-US-GuyNeural), return it directly
+    if voice_id and "-" in voice_id and "Neural" in voice_id:
+        return voice_id
     lang_voices = EDGE_TTS_VOICES.get(lang_code, EDGE_TTS_VOICES["km"])
     voices = lang_voices.get(gender, lang_voices.get("female", []))
     if voice_id and not voice_id.startswith("mms_") and not voice_id.startswith("klea_"):
@@ -848,6 +851,30 @@ def get_edge_voice(lang_code, gender, voice_id=None):
         if not v.get("provider"):
             return v["voice"]
     return "km-KH-SreymomNeural"
+
+# Build a flat lookup from voice id → Edge TTS voice name (for all hardcoded voices)
+_VOICE_ID_TO_EDGE = {}
+for _lc, _lv in EDGE_TTS_VOICES.items():
+    for _g in ("male", "female"):
+        for _v in _lv.get(_g, []):
+            if not _v.get("provider"):
+                _VOICE_ID_TO_EDGE[_v["id"]] = _v["voice"]
+
+def resolve_edge_voice_name(voice_id: str) -> str:
+    """Resolve any voice ID to its full Edge TTS voice name.
+    Supports: short IDs (dara, sophea), full names (en-US-GuyNeural), or fallback."""
+    if not voice_id:
+        return "km-KH-SreymomNeural"
+    # Already a full Edge TTS voice name
+    if "-" in voice_id and "Neural" in voice_id:
+        return voice_id
+    # Lookup in hardcoded map
+    if voice_id in _VOICE_ID_TO_EDGE:
+        return _VOICE_ID_TO_EDGE[voice_id]
+    return "km-KH-SreymomNeural"
+
+# Cache for all Edge TTS voices
+_all_edge_voices_cache = {"data": None, "expires": 0}
 
 def is_mms_voice(voice_id):
     """Check if a voice_id is a Meta MMS voice."""
@@ -1156,7 +1183,7 @@ async def create_project(project: ProjectCreate, authorization: str = Header(Non
         "file_type": "text", "original_file_path": None, "original_filename": None,
         "extracted_audio_path": None, "original_text": None, "translated_text": None,
         "dubbed_audio_path": None, "dubbed_video_path": None, "segments": [], "actors": [],
-        "status": "created", "voice": "sophea", "female_voice": "sophea", "male_voice": "mms_khmer",
+        "status": "created", "voice": "sophea", "female_voice": "sophea", "male_voice": "dara",
         "detected_language": None, "share_token": None,
         "created_at": now, "updated_at": now
     }
@@ -2491,6 +2518,90 @@ async def get_queue_status(project_id: str, authorization: str = Header(None)):
         "demucs_duration": qs.get("demucs_duration", 0),
     }
 
+# ===== Edge TTS All Voices (Open Source - All Languages) =====
+
+@api_router.get("/edge-voices")
+async def list_edge_voices():
+    """List ALL available Edge TTS voices (400+ voices, 80+ languages). Cached for 6 hours."""
+    import time as _time
+    import edge_tts
+    
+    now = _time.time()
+    if _all_edge_voices_cache["data"] and now < _all_edge_voices_cache["expires"]:
+        return _all_edge_voices_cache["data"]
+    
+    try:
+        raw_voices = await edge_tts.list_voices()
+    except Exception as e:
+        logger.error(f"Failed to fetch Edge TTS voices: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch voices")
+    
+    # Group by language
+    lang_map = {}
+    for v in raw_voices:
+        locale = v.get("Locale", "")
+        lang_code = locale.split("-")[0] if locale else "unknown"
+        friendly_name = v.get("FriendlyName", v.get("ShortName", ""))
+        short_name = v.get("ShortName", "")
+        gender = v.get("Gender", "Female")
+        
+        # Extract display name from FriendlyName (e.g. "Microsoft Server Speech Text to Speech Voice (en-US, GuyNeural)" -> "Guy")
+        display = short_name.split("-")[-1].replace("Neural", "") if short_name else friendly_name
+        
+        if lang_code not in lang_map:
+            lang_map[lang_code] = {"locale": locale, "male": [], "female": []}
+        
+        voice_entry = {
+            "id": short_name,
+            "name": display,
+            "voice": short_name,
+            "locale": locale,
+        }
+        
+        if gender == "Male":
+            lang_map[lang_code]["male"].append(voice_entry)
+        else:
+            lang_map[lang_code]["female"].append(voice_entry)
+    
+    # Sort languages, put popular ones first
+    priority_langs = ["km", "en", "zh", "ja", "ko", "th", "vi", "es", "fr", "de", "hi", "id", "pt", "ru", "ar", "it", "ms", "lo", "my", "tl"]
+    
+    result = []
+    seen = set()
+    for lc in priority_langs:
+        if lc in lang_map:
+            result.append({"code": lc, **lang_map[lc]})
+            seen.add(lc)
+    for lc in sorted(lang_map.keys()):
+        if lc not in seen:
+            result.append({"code": lc, **lang_map[lc]})
+    
+    response = {"languages": result, "total_voices": len(raw_voices), "total_languages": len(lang_map)}
+    _all_edge_voices_cache["data"] = response
+    _all_edge_voices_cache["expires"] = now + 21600  # 6 hours
+    return response
+
+class EdgeTTSPreviewReq(BaseModel):
+    text: str = "This is a voice preview test."
+    voice: str  # Full Edge TTS voice name like "en-US-GuyNeural"
+
+@api_router.post("/edge-tts-preview")
+async def preview_edge_voice(req: EdgeTTSPreviewReq):
+    """Preview any Edge TTS voice. Returns MP3 audio."""
+    import edge_tts
+    tts_path = os.path.join(tempfile.gettempdir(), f"edge_preview_{uuid.uuid4().hex}.mp3")
+    try:
+        communicate = edge_tts.Communicate(req.text, voice=req.voice)
+        await communicate.save(tts_path)
+        with open(tts_path, "rb") as f:
+            audio_data = f.read()
+        return Response(content=audio_data, media_type="audio/mpeg")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if os.path.exists(tts_path):
+            os.unlink(tts_path)
+
 # ===== Google Cloud TTS Integration =====
 
 # Cache voices for 1 hour
@@ -2868,7 +2979,7 @@ Return ONLY a JSON array: [{{"start": 10.0, "end": 40.0, "reason": "..."}}]""")
 # 5. Text to Speech
 class TTSReq(BaseModel):
     text: str
-    voice: str = "mms_khmer"
+    voice: str = "dara"
     speed: int = 0
 
 @api_router.post("/tools/text-to-speech")
@@ -2880,15 +2991,9 @@ async def tool_text_to_speech(req: TTSReq, authorization: str = Header(None)):
         mms_speed = (1.0 + req.speed / 100.0) * 0.9
         generate_mms_tts(req.text, out_path, speed=max(0.5, mms_speed), female=is_mms_female(voice_id))
     else:
-        # Edge TTS
+        # Edge TTS - resolve any voice ID to full Edge TTS name
         import edge_tts
-        edge_map = {
-            "sophea": "km-KH-SreymomNeural", "dara": "km-KH-PisethNeural",
-            "en_m1": "en-US-GuyNeural", "en_f1": "en-US-JennyNeural",
-            "zh_m1": "zh-CN-YunxiNeural", "zh_f1": "zh-CN-XiaoxiaoNeural",
-            "th_m1": "th-TH-NiwatNeural", "th_f1": "th-TH-PremwadeeNeural",
-        }
-        edge_voice = edge_map.get(voice_id, "km-KH-SreymomNeural")
+        edge_voice = resolve_edge_voice_name(voice_id)
         rate = f"+{req.speed}%" if req.speed >= 0 else f"{req.speed}%"
         out_mp3 = out_path.replace(".wav", ".mp3")
         communicate = edge_tts.Communicate(req.text, voice=edge_voice, rate=rate)
@@ -2952,7 +3057,7 @@ async def tool_download(filename: str):
 # 8. Voice Replace (Demucs + Whisper + GPT + TTS + Mix)
 @api_router.post("/tools/voice-replace")
 async def tool_voice_replace(video: UploadFile = File(...), extra_text: str = Form(""),
-    voice: str = Form("mms_khmer"), target_language: str = Form("km"), authorization: str = Header(None)):
+    voice: str = Form("dara"), target_language: str = Form("km"), authorization: str = Header(None)):
     from emergentintegrations.llm.openai import OpenAISpeechToText
     from emergentintegrations.llm.chat import LlmChat, UserMessage
     user = await get_current_user(authorization)
@@ -3009,8 +3114,7 @@ async def tool_voice_replace(video: UploadFile = File(...), extra_text: str = Fo
             generate_mms_tts(final_text.strip(), tts_path, speed=mms_speed, female=is_mms_female(voice_id))
         else:
             import edge_tts
-            edge_map = {"sophea": "km-KH-SreymomNeural", "dara": "km-KH-PisethNeural"}
-            edge_voice = edge_map.get(voice_id, "km-KH-SreymomNeural")
+            edge_voice = resolve_edge_voice_name(voice_id)
             tts_mp3 = tts_path.replace(".wav", ".mp3")
             communicate = edge_tts.Communicate(final_text.strip(), voice=edge_voice)
             await communicate.save(tts_mp3)
