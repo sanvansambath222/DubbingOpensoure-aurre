@@ -3216,9 +3216,9 @@ async def startup():
 
 
 async def auto_cleanup_old_projects():
-    """Delete all projects older than 12 hours (trial users). Runs every 1 hour."""
-    CLEANUP_INTERVAL_HOURS = 1
-    PROJECT_MAX_AGE_HOURS = 12
+    """Delete all projects older than 6 hours (free tier). Runs every 30 minutes."""
+    CLEANUP_INTERVAL_HOURS = 0.5
+    PROJECT_MAX_AGE_HOURS = 6
     while True:
         try:
             await asyncio.sleep(CLEANUP_INTERVAL_HOURS * 3600)
@@ -3233,13 +3233,21 @@ async def auto_cleanup_old_projects():
             deleted_count = 0
             # Clean up files first
             for project in old_projects:
-                for key in ["original_file_path", "dubbed_audio_path", "dubbed_video_path"]:
+                for key in ["original_file_path", "dubbed_audio_path", "dubbed_video_path", "extracted_audio_path"]:
                     file_path = project.get(key)
                     if file_path:
                         try:
                             delete_object(file_path)
                         except Exception:
                             pass
+                # Also clean project upload folder
+                proj_dir = os.path.join("uploads", "voxidub", project.get("project_id", ""))
+                if os.path.isdir(proj_dir):
+                    try:
+                        import shutil
+                        shutil.rmtree(proj_dir)
+                    except Exception:
+                        pass
                 deleted_count += 1
 
             # Bulk delete from DB
