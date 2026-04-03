@@ -23,6 +23,23 @@ Build a video/audio dubbing platform with AI transcription, translation, TTS voi
 - [x] Professional Tools page with drag & drop UI
 - [x] Google Cloud deployment (34.177.89.44)
 - [x] Dynamic cache paths (Path.home() instead of /root/)
+- [x] **All-language Edge TTS voices (322 voices, 75 languages) - Feb 2026**
+- [x] **Auto-process default: Piseth (dara) male + Sreymom (sophea) female - Feb 2026**
+- [x] **Voice search in TTS & Voice Replace tools - Feb 2026**
+- [x] **Voice preview (play before select) in VoicePickerModal - Feb 2026**
+
+## Voice System
+### Default Auto-Process Voices
+| Gender | Voice | Provider |
+|--------|-------|----------|
+| Boy | Piseth (dara) | Edge TTS |
+| Girl | Sreymom (sophea) | Edge TTS |
+
+### All Available Voices
+- 322 Edge TTS voices across 75 languages (FREE, open source)
+- Meta MMS Khmer: Boy + Girl (AI, local)
+- API: GET /api/edge-voices (cached 6 hours)
+- Preview: POST /api/edge-tts-preview
 
 ## Standalone Tools
 | Tool | Backend | Cost |
@@ -32,16 +49,10 @@ Build a video/audio dubbing platform with AI transcription, translation, TTS voi
 | Translate | GPT-5.2 | Emergent Key |
 | Trim Video | FFmpeg | FREE |
 | AI Clips | Whisper + GPT-5.2 + FFmpeg | Emergent Key |
-| Text to Speech | Meta MMS + Edge TTS | FREE |
+| Text to Speech | Edge TTS (all languages) + Meta MMS | FREE |
 | Resize Video | FFmpeg | FREE |
 | Convert | FFmpeg | FREE |
 | Add Logo | FFmpeg | FREE |
-
-## Voice Defaults (Auto-Process)
-| Gender | Voice | Provider |
-|--------|-------|----------|
-| Boy | Meta AI (Boy) | Meta MMS (mms_khmer) |
-| Girl | Sreymom (Girl) | Edge TTS (sophea) |
 
 ## Upcoming Tasks
 - [ ] Stripe payment (Free/Basic/Pro/Business) (P0)
@@ -54,6 +65,7 @@ Build a video/audio dubbing platform with AI transcription, translation, TTS voi
 - [ ] Mobile-friendly layout (P2)
 - [ ] Export different video quality (P2)
 - [ ] Team workspace (P3)
+- [ ] Refactor server.py into routes/services (P1)
 
 ## Google Cloud Deployment
 - Server: e2-medium (2 vCPU, 4GB RAM), Debian 13

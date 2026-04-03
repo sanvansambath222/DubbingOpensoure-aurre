@@ -12,13 +12,30 @@ import { API } from "./constants";
 import axios from "axios";
 import { toast } from "sonner";
 
+const LANG_NAMES = {
+  km: "Khmer", en: "English", zh: "Chinese", ja: "Japanese", ko: "Korean", th: "Thai",
+  vi: "Vietnamese", es: "Spanish", fr: "French", de: "German", hi: "Hindi", id: "Indonesian",
+  pt: "Portuguese", ru: "Russian", ar: "Arabic", it: "Italian", ms: "Malay", lo: "Lao",
+  my: "Myanmar", tl: "Filipino", nl: "Dutch", pl: "Polish", tr: "Turkish", sv: "Swedish",
+  da: "Danish", fi: "Finnish", nb: "Norwegian", cs: "Czech", el: "Greek", he: "Hebrew",
+  hu: "Hungarian", ro: "Romanian", sk: "Slovak", uk: "Ukrainian", bg: "Bulgarian",
+  hr: "Croatian", lt: "Lithuanian", lv: "Latvian", et: "Estonian", sl: "Slovenian",
+  sr: "Serbian", ca: "Catalan", ta: "Tamil", te: "Telugu", bn: "Bengali", gu: "Gujarati",
+  kn: "Kannada", ml: "Malayalam", mr: "Marathi", pa: "Punjabi", ur: "Urdu", fa: "Persian",
+  sw: "Swahili", am: "Amharic", ne: "Nepali", si: "Sinhala", af: "Afrikaans", cy: "Welsh",
+  ga: "Irish", is: "Icelandic", mk: "Macedonian", bs: "Bosnian", sq: "Albanian",
+  az: "Azerbaijani", ka: "Georgian", hy: "Armenian", uz: "Uzbek", kk: "Kazakh",
+  mn: "Mongolian", ps: "Pashto", so: "Somali", zu: "Zulu", jv: "Javanese",
+  su: "Sundanese", fil: "Filipino", wuu: "Wu Chinese", yue: "Cantonese",
+};
+
 const TOOLS = [
   { id: "voice-replace", name: "Voice Replace", desc: "Remove voice, rewrite text, generate new voice", icon: Waveform, color: "from-rose-500 to-pink-600", tag: "AI" },
   { id: "subtitles", name: "Add Subtitles", desc: "Burn subtitles into video", icon: Subtitles, color: "from-violet-500 to-purple-600", tag: null },
   { id: "translate", name: "Translate", desc: "Translate text or SRT file", icon: Translate, color: "from-sky-500 to-blue-600", tag: "AI" },
   { id: "trim", name: "Trim Video", desc: "Cut video by time range", icon: Scissors, color: "from-amber-500 to-orange-600", tag: null },
   { id: "ai-clips", name: "AI Clips", desc: "Auto-create short clips", icon: FilmSlate, color: "from-cyan-500 to-teal-600", tag: "AI" },
-  { id: "tts", name: "Text to Speech", desc: "Type text, get Khmer audio", icon: SpeakerHigh, color: "from-emerald-500 to-green-600", tag: null },
+  { id: "tts", name: "Text to Speech", desc: "Type text, get audio in any language", icon: SpeakerHigh, color: "from-emerald-500 to-green-600", tag: null },
   { id: "resize", name: "Resize Video", desc: "Change video dimensions", icon: ArrowsOut, color: "from-blue-500 to-indigo-600", tag: null },
   { id: "convert", name: "Convert", desc: "Change video/audio format", icon: ArrowsClockwise, color: "from-orange-500 to-red-600", tag: null },
   { id: "add-logo", name: "Add Logo", desc: "Overlay logo/watermark on video", icon: ImageIcon, color: "from-pink-500 to-rose-600", tag: null },
@@ -107,7 +124,7 @@ const VoiceReplaceTool = ({ token, d }) => {
       flat.push({ value: "sophea", label: "Sreymom (Girl) - Khmer" });
       for (const lang of (r.data.languages || [])) {
         if (lang.code === "km") continue;
-        const langName = lang.locale?.split("-").slice(0,2).join("-") || lang.code;
+        const langName = LANG_NAMES[lang.code] || lang.code.toUpperCase();
         for (const v of [...(lang.male || []), ...(lang.female || [])]) {
           flat.push({ value: v.voice, label: `${v.name} - ${langName}` });
         }
@@ -377,7 +394,7 @@ const TTSTool = ({ token, d }) => {
       flat.push({ value: "sophea", label: "Sreymom (Girl) - Khmer" });
       for (const lang of (r.data.languages || [])) {
         if (lang.code === "km") continue;
-        const langName = lang.locale?.split("-").slice(0,2).join("-") || lang.code;
+        const langName = LANG_NAMES[lang.code] || lang.code.toUpperCase();
         for (const v of [...(lang.male || []), ...(lang.female || [])]) {
           flat.push({ value: v.voice, label: `${v.name} - ${langName}` });
         }
