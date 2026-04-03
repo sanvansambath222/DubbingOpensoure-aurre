@@ -46,7 +46,8 @@ const SharedProject = () => {
       <header className={`backdrop-blur-sm border-b ${d?'bg-zinc-950/90 border-zinc-800':'bg-zinc-50/90 border-black/10'}`}>
         <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <img src="/voxidub-logo.png" alt="VoxiDub.AI" className="h-14 w-auto object-contain" />
+            <img src="/voxidub-logo.png" alt="VoxiDub.AI" className="h-12 w-auto object-contain" />
+            <span className={`text-lg font-bold ${d?'text-white':'text-zinc-950'}`} style={{fontFamily:"'Outfit',sans-serif"}}>VoxiDub.AI</span>
           </div>
           <div className="flex items-center gap-3">
             <ThemeToggle />

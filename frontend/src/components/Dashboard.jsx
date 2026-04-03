@@ -103,7 +103,8 @@ const Dashboard = () => {
       <header className={`backdrop-blur-xl shadow-sm border-b ${d?'bg-zinc-950/80 border-zinc-800':'bg-white/70 border-black/10'}`}>
         <div className="max-w-6xl mx-auto px-6 py-2 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <img src="/voxidub-logo.png" alt="VoxiDub.AI" className="h-16 w-auto object-contain" />
+            <img src="/voxidub-logo.png" alt="VoxiDub.AI" className="h-12 w-auto object-contain" />
+            <span className={`text-lg font-bold tracking-tight ${d?'text-white':'text-zinc-950'}`} style={{fontFamily:"'Outfit',sans-serif"}}>VoxiDub.AI</span>
           </div>
           <div className="flex items-center gap-3">
             <ThemeToggle />

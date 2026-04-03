@@ -697,7 +697,8 @@ const ToolsPage = () => {
         <div className="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button onClick={() => navigate("/dashboard")} className="flex items-center gap-2 transition-opacity hover:opacity-80">
-              <img src="/voxidub-logo.png" alt="VoxiDub.AI" className="h-12 w-auto object-contain" />
+              <img src="/voxidub-logo.png" alt="VoxiDub.AI" className="h-10 w-auto object-contain" />
+              <span className={`font-bold text-sm ${d?'text-white':'text-zinc-950'}`} style={{fontFamily:"'Outfit',sans-serif"}}>VoxiDub.AI</span>
             </button>
             <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium tracking-wide uppercase ${d?'bg-violet-500/20 text-violet-400':'bg-violet-100 text-violet-600'}`}>Tools</span>
           </div>
