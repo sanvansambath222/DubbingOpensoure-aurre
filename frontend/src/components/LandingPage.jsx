@@ -46,12 +46,9 @@ const LandingPage = () => {
   return (
     <div className={`min-h-screen relative overflow-hidden ${d?'bg-zinc-950':'bg-white'}`} style={{fontFamily:"'IBM Plex Sans',sans-serif"}}>
       <header className={`fixed top-0 left-0 right-0 z-50 backdrop-blur-xl shadow-sm ${d?'bg-zinc-950/80 border-b border-zinc-800':'bg-white/70 border-b border-black/10'}`}>
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className={`w-8 h-8 rounded-sm flex items-center justify-center ${d?'bg-white':'bg-zinc-950'}`}>
-              <MicrophoneStage className={`w-4 h-4 ${d?'text-zinc-950':'text-white'}`} weight="fill" />
-            </div>
-            <span className={`text-lg font-semibold tracking-tight ${d?'text-white':'text-zinc-950'}`} style={{fontFamily:"'Outfit',sans-serif"}}>VoxiDub</span>
+        <div className="max-w-7xl mx-auto px-6 py-2 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <img src="/voxidub-logo.png" alt="VoxiDub.AI" className="h-16 w-auto object-contain" />
           </div>
           <div className="flex items-center gap-3">
             <ThemeToggle />

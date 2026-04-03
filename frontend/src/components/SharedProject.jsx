@@ -45,11 +45,8 @@ const SharedProject = () => {
     <div className={`min-h-screen ${d?'bg-zinc-950':'bg-zinc-50'}`} data-testid="shared-project-page">
       <header className={`backdrop-blur-sm border-b ${d?'bg-zinc-950/90 border-zinc-800':'bg-zinc-50/90 border-black/10'}`}>
         <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className={`w-9 h-9 border rounded-sm flex items-center justify-center ${d?'bg-zinc-800 border-zinc-700':'bg-zinc-950/5 border-zinc-950/15'}`}>
-              <MicrophoneStage className={`w-5 h-5 ${d?'text-white':'text-zinc-700'}`} weight="fill" />
-            </div>
-            <span className={`text-lg font-semibold ${d?'text-white':'text-zinc-950'}`}>VoxiDub</span>
+          <div className="flex items-center gap-2">
+            <img src="/voxidub-logo.png" alt="VoxiDub.AI" className="h-14 w-auto object-contain" />
           </div>
           <div className="flex items-center gap-3">
             <ThemeToggle />
