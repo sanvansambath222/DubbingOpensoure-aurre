@@ -32,6 +32,10 @@ Build a video/audio dubbing platform with AI transcription, translation, TTS voi
 - [x] **Telegram Bot Integration** — auto-send dubbed videos to user's Telegram
 - [x] **Connect Telegram** button on dashboard with code-based linking
 - [x] **Telegram modal centered** — Fixed via React Portal (backdrop-blur stacking context fix)
+- [x] **Telegram warning banner** — Dashboard shows "Connect Telegram to receive your videos" when not linked
+- [x] **Telegram bot welcome upgrade** — /start sends HTML message with clickable "Open VoxiDub.AI" button
+- [x] **Telegram video caption upgrade** — Shows source→target language (e.g. "Chinese → Khmer")
+- [x] **Tools page UI upgrade** — Bento grid layout, colored icon backgrounds, accent colors, AI badges, professional split header/form design
 
 ## Telegram Integration
 ### Flow:
