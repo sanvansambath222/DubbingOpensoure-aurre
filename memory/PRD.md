@@ -37,9 +37,10 @@ Build a video/audio dubbing platform with AI transcription, translation, TTS voi
 - [x] **Telegram video caption upgrade** — Shows source→target language (e.g. "Chinese → Khmer")
 - [x] **Tools page UI upgrade** — Bento grid layout, colored icon backgrounds, accent colors, AI badges, professional split header/form design
 - [x] **Tools page full redesign** — Complete rewrite with gradient icons (dark), rounded-xl inputs, professional drop zones, lightning bolt buttons, uppercase labels, hover animations
-- [x] **Subscription system** — 4 plans (Free $0, Basic $19, Pro $49, Business $99), USD/KHR toggle, usage tracking, video credits
-- [x] **Pricing page** — Professional plan cards with features list, Most Popular badge, Current Plan badge, FAQ section, payment method badges
-- [x] **Subscription APIs** — /subscription/plans, /me, /use-credit, /activate, /history
+- [x] **Subscription system** — 4 plans (Free $0, Basic $5, Pro $15, Business $39), USD/KHR toggle, usage tracking, video credits
+- [x] **Credit pack system** — Pay per video: 5/$3, 20/$10, 50/$20, 100/$35 (Cambodia-friendly pricing)
+- [x] **Pricing page** — Tabbed layout (Credit Packs + Monthly Plans), Best Value/Most Popular badges, FAQ, ABA PayWay payment methods
+- [x] **Subscription APIs** — /subscription/plans, /me, /use-credit, /buy-credits, /activate, /history
 
 ## Telegram Integration
 ### Flow:
