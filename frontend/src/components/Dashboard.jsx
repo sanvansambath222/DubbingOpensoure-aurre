@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { toast } from "sonner";
@@ -79,53 +80,55 @@ const TelegramConnect = ({ token, isDark }) => {
         </button>
       )}
 
-      {/* Link Modal */}
+      {/* Link Modal - Portal to body to avoid backdrop-blur stacking context */}
+      {createPortal(
       <AnimatePresence>
         {showModal && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center" onClick={() => setShowModal(false)}>
             <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} exit={{ scale: 0.9 }}
-              className={`border rounded-sm p-6 max-w-sm w-full mx-4 shadow-xl ${d?'bg-zinc-900 border-zinc-700':'bg-white border-black/10'}`}
+              className={`border rounded-sm p-6 max-w-md w-full mx-4 shadow-xl max-h-[90vh] overflow-y-auto ${d?'bg-zinc-900 border-zinc-700':'bg-white border-black/10'}`}
               onClick={e => e.stopPropagation()}>
               <div className="flex items-center gap-2 mb-4">
                 <TelegramLogo className="w-6 h-6 text-sky-500" weight="fill" />
                 <h3 className={`font-semibold text-base ${d?'text-white':'text-zinc-950'}`}>Connect Telegram</h3>
               </div>
-              <div className="space-y-3">
-                <p className={`text-xs ${d?'text-zinc-400':'text-zinc-600'}`}>
+              <div className="space-y-4">
+                <p className={`text-sm ${d?'text-zinc-400':'text-zinc-600'}`}>
                   1. Click the button below to open the bot:
                 </p>
                 <a href="https://t.me/VoxiDub_bot" target="_blank" rel="noreferrer" data-testid="open-telegram-bot"
-                  className="flex items-center justify-center gap-2 w-full py-2.5 rounded-sm text-sm font-semibold bg-sky-500 text-white hover:bg-sky-400 transition-colors">
+                  className="flex items-center justify-center gap-2 w-full py-3 rounded-sm text-sm font-semibold bg-sky-500 text-white hover:bg-sky-400 transition-colors">
                   <TelegramLogo className="w-5 h-5" weight="fill" /> Open @VoxiDub_bot
                 </a>
-                <p className={`text-xs ${d?'text-zinc-400':'text-zinc-600'}`}>
+                <p className={`text-sm ${d?'text-zinc-400':'text-zinc-600'}`}>
                   2. Click <strong>Start</strong> in the bot
                 </p>
-                <p className={`text-xs ${d?'text-zinc-400':'text-zinc-600'}`}>
+                <p className={`text-sm ${d?'text-zinc-400':'text-zinc-600'}`}>
                   3. Send this code to the bot:
                 </p>
-                <div className={`flex items-center gap-2 p-3 rounded-sm ${d?'bg-zinc-800':'bg-zinc-100'}`}>
-                  <code className={`text-lg font-bold flex-1 tracking-wider ${d?'text-cyan-400':'text-cyan-600'}`} data-testid="telegram-code">{code}</code>
-                  <button onClick={copyCode} className={`p-1.5 rounded-sm transition-colors ${d?'hover:bg-zinc-700 text-zinc-400':'hover:bg-zinc-200 text-zinc-500'}`}>
-                    <CopySimple className="w-4 h-4" />
+                <div className={`flex items-center justify-between gap-3 p-4 rounded-sm ${d?'bg-zinc-800':'bg-zinc-100'}`}>
+                  <code className={`text-2xl font-bold flex-1 tracking-widest ${d?'text-cyan-400':'text-cyan-600'}`} data-testid="telegram-code">{code}</code>
+                  <button onClick={copyCode} className={`p-2 rounded-sm transition-colors ${d?'hover:bg-zinc-700 text-zinc-400':'hover:bg-zinc-200 text-zinc-500'}`}>
+                    <CopySimple className="w-5 h-5" />
                   </button>
                 </div>
-                <p className={`text-[10px] ${d?'text-zinc-600':'text-zinc-400'}`}>
+                <p className={`text-xs ${d?'text-zinc-500':'text-zinc-400'}`}>
                   Code expires in 10 minutes. Waiting for link...
                 </p>
                 <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 border-2 border-t-transparent border-sky-400 rounded-full animate-spin" />
-                  <span className={`text-[10px] ${d?'text-zinc-500':'text-zinc-400'}`}>Waiting for you to send the code...</span>
+                  <div className="w-3.5 h-3.5 border-2 border-t-transparent border-sky-400 rounded-full animate-spin" />
+                  <span className={`text-xs ${d?'text-zinc-500':'text-zinc-400'}`}>Waiting for you to send the code...</span>
                 </div>
               </div>
-              <button onClick={() => setShowModal(false)} className={`mt-4 w-full py-2 text-xs font-semibold rounded-sm transition-colors ${d?'bg-zinc-800 text-white hover:bg-zinc-700':'bg-zinc-100 text-zinc-700 hover:bg-zinc-200'}`}>
+              <button onClick={() => setShowModal(false)} className={`mt-5 w-full py-2.5 text-sm font-semibold rounded-sm transition-colors ${d?'bg-zinc-800 text-white hover:bg-zinc-700':'bg-zinc-100 text-zinc-700 hover:bg-zinc-200'}`}>
                 Close
               </button>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
+      , document.body)}
     </>
   );
 };

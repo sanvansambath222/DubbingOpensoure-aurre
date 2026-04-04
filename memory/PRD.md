@@ -31,6 +31,7 @@ Build a video/audio dubbing platform with AI transcription, translation, TTS voi
 - [x] Domain: voxidub.com + SSL (Let's Encrypt)
 - [x] **Telegram Bot Integration** — auto-send dubbed videos to user's Telegram
 - [x] **Connect Telegram** button on dashboard with code-based linking
+- [x] **Telegram modal centered** — Fixed via React Portal (backdrop-blur stacking context fix)
 
 ## Telegram Integration
 ### Flow:
