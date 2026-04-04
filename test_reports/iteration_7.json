@@ -59,7 +59,7 @@
 
   "should_main_agent_self_test": false,
 
-  "context_for_next_testing_agent": "Progress bar and chunked translation features fully implemented and tested. Backend queue-status endpoint returns step/progress/total/elapsed/eta fields. /api/languages endpoint REMOVED (languages stored in frontend OUTPUT_LANGUAGES dict). translate-segments accepts ?target_language=xx param. ProcessingOverlay component shows progress bar when progressInfo has data (progress-bar-container, progress-count data-testids). Test session: test_session_001 for user test-user-001.",
+  "context_for_next_testing_agent": "Progress bar and chunked translation features fully implemented and tested. Backend queue-status endpoint returns step/progress/total/elapsed/eta fields. /api/languages endpoint REMOVED (languages stored in frontend OUTPUT_LANGUAGES dict). translate-segments accepts ?target_language=xx param. ProcessingOverlay component shows progress bar when progressInfo has data (progress-bar-container, progress-count data-testids). Test session: test_session: [REDACTED].",
 
   "features_verified": {
     "queue_status_endpoint": "Returns step, progress, total, elapsed, eta fields",

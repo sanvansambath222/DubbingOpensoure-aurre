@@ -191,7 +191,7 @@ Change to your server IP or domain:
 REACT_APP_BACKEND_URL=http://YOUR_SERVER_IP
 ```
 
-Example: `REACT_APP_BACKEND_URL=http://34.177.89.44`
+Example: `REACT_APP_BACKEND_URL=http://123.456.789.10`
 
 Save: Ctrl+X, Y, Enter
 
@@ -320,29 +320,29 @@ You should see VoxiDub!
 
 ## PART 6: Create Test User
 
+**Important: Change the email and password below to your own!**
+
 ```bash
-cd /home/voxidub && source venv/bin/activate 2>/dev/null; python3 -c "
+cd /home/voxidub && source backend/venv/bin/activate 2>/dev/null; python3 -c "
 import pymongo, bcrypt, uuid
 client = pymongo.MongoClient('mongodb://localhost:27017/voxidub')
 db = client['voxidub']
 from datetime import datetime, timezone
-password = bcrypt.hashpw('test123'.encode(), bcrypt.gensalt()).decode()
+password = bcrypt.hashpw('YOUR_PASSWORD_HERE'.encode(), bcrypt.gensalt()).decode()
 db.users.insert_one({
     'user_id': 'user_' + uuid.uuid4().hex[:12],
-    'email': 'admin@voxidub.com',
+    'email': 'YOUR_EMAIL_HERE',
     'name': 'Admin',
     'picture': '',
     'password_hash': password,
     'auth_provider': 'email',
     'created_at': datetime.now(timezone.utc).isoformat()
 })
-print('User created: admin@voxidub.com / test123')
+print('User created!')
 "
 ```
 
-Login at your site with:
-- Email: `admin@voxidub.com`
-- Password: `test123`
+Replace `YOUR_EMAIL_HERE` and `YOUR_PASSWORD_HERE` with your own credentials.
 
 ---
 

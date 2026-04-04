@@ -23,6 +23,7 @@ const SharedProject = () => {
       finally { setLoading(false); }
     };
     if (shareToken) fetchShared();
+    else setLoading(false);
   }, [shareToken]);
 
   if (loading) return <div className={`min-h-screen flex items-center justify-center ${d?'bg-zinc-950':'bg-zinc-50'}`}><Spinner className="w-12 h-12 text-zinc-700 animate-spin" /></div>;

@@ -5,7 +5,7 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "build-react": "cd ../frontend && REACT_APP_BACKEND_URL=http://localhost:8001 yarn build",
+    "build-react": "cd ../frontend && REACT_APP_BACKEND_URL=http://localhost:8001 yarn build && cp -r build ../desktop/build",
     "pack": "electron-builder --dir",
     "dist": "electron-builder",
     "dist-win": "electron-builder --win"
@@ -35,7 +35,8 @@
       "backend/**/*",
       "!backend/venv/**",
       "!backend/__pycache__/**",
-      "!backend/tests/**"
+      "!backend/tests/**",
+      "!backend/.env"
     ],
     "extraResources": [
       {

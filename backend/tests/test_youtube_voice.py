@@ -8,6 +8,9 @@ import os
 import time
 
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
+import pytest
+if not BASE_URL:
+    pytest.skip('REACT_APP_BACKEND_URL required', allow_module_level=True)
 AUTH_TOKEN = os.environ.get('TEST_AUTH_TOKEN', 'test_session_001')
 
 class TestProjectCRUD:

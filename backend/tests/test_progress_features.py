@@ -9,6 +9,8 @@ import os
 @pytest.fixture(scope="module")
 def api_url():
     base = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
+    if not base:
+        pytest.skip('REACT_APP_BACKEND_URL required')
     return f"{base}/api"
 
 

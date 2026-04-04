@@ -59,7 +59,7 @@
     "frontend": "100% (Voice Picker Modal works correctly)"
   },
 
-  "test_credentials": "Session Token: test_session_001, User ID: test-user-001",
+  "test_credentials": "Session Token: [REDACTED]",
 
   "seed_data_creation": "Created and deleted test project proj_3cbd879e94f4 with mock actors for Voice Picker testing",
 
@@ -67,7 +67,7 @@
 
   "should_main_agent_self_test": false,
 
-  "context_for_next_testing_agent": "Google Cloud TTS integration tested successfully. Backend endpoints /api/gcloud-voices and /api/gcloud-tts-preview work correctly. Voice Picker Modal has two tabs: Edge TTS (free, 22 voices) and Google Cloud (premium, 2066 voices). Google Cloud doesn't support Khmer (km) language - shows 0 voices. Actor data now supports tts_provider ('edge' or 'gcloud'), gcloud_voice, and gcloud_language fields. Test session: test_session_001.",
+  "context_for_next_testing_agent": "Google Cloud TTS integration tested successfully. Backend endpoints /api/gcloud-voices and /api/gcloud-tts-preview work correctly. Voice Picker Modal has two tabs: Edge TTS (free, 22 voices) and Google Cloud (premium, 2066 voices). Google Cloud doesn't support Khmer (km) language - shows 0 voices. Actor data now supports tts_provider ('edge' or 'gcloud'), gcloud_voice, and gcloud_language fields. Test session: test_session: [REDACTED].",
 
   "google_cloud_tts_notes": {
     "supported_languages": "2066 voices across many languages including English (260), Thai (32), Chinese, Japanese, Korean, etc.",

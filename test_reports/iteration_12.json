@@ -13,7 +13,7 @@
   },
 
   "passed_tests": [
-    "POST /api/auth/login - Login with test@voxidub.com / test123 works",
+    "POST /api/auth/login - Login with test@voxidub.com / [REDACTED] works",
     "GET /api/projects/proj_e7169160ad1f - Test project exists with video file",
     "POST /api/projects/{project_id}/extract-background - Returns 200",
     "POST /api/projects/{project_id}/extract-background - Returns WAV audio with RIFF header",
@@ -49,7 +49,7 @@
     "frontend": "100% (All UI elements working correctly)"
   },
 
-  "test_credentials": "Email: test@voxidub.com, Password: test123, Test Project: proj_e7169160ad1f",
+  "test_credentials": "Email: test@voxidub.com, Password: [REDACTED], Test Project: proj_e7169160ad1f",
 
   "seed_data_creation": "Used existing test project proj_e7169160ad1f with uploaded video",
 

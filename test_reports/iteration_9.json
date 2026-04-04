@@ -68,7 +68,7 @@
 
   "should_main_agent_self_test": false,
 
-  "context_for_next_testing_agent": "Code refactoring verified successfully. App.js split into 6 components: AuthContext.jsx (auth provider, theme, callback), LandingPage.jsx (landing page), Dashboard.jsx (project list with CRUD), Editor.jsx (main editor), SharedProject.jsx (public shared view), EditorWidgets.jsx (StepProgress, ProcessingOverlay), constants.js (API URL, timeouts, languages). Backend helpers extracted: download_youtube_audio, save_youtube_voice_to_actor, assemble_dubbed_video, merge_whisper_segments, build_actors_from_segments, apply_speaker_detections, apply_fallback_speakers, separate_custom_and_tts_segments, mix_audio_timeline, fit_audio_to_duration. Test session: test_session_001 for user test-user-001.",
+  "context_for_next_testing_agent": "Code refactoring verified successfully. App.js split into 6 components: AuthContext.jsx (auth provider, theme, callback), LandingPage.jsx (landing page), Dashboard.jsx (project list with CRUD), Editor.jsx (main editor), SharedProject.jsx (public shared view), EditorWidgets.jsx (StepProgress, ProcessingOverlay), constants.js (API URL, timeouts, languages). Backend helpers extracted: download_youtube_audio, save_youtube_voice_to_actor, assemble_dubbed_video, merge_whisper_segments, build_actors_from_segments, apply_speaker_detections, apply_fallback_speakers, separate_custom_and_tts_segments, mix_audio_timeline, fit_audio_to_duration. Test session: test_session: [REDACTED].",
 
   "refactoring_verification": {
     "frontend_components_split": {

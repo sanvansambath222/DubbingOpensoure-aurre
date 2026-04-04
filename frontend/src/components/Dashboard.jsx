@@ -52,7 +52,7 @@ const Dashboard = () => {
     if (!window.confirm("Delete this project and all its files?")) return;
     try {
       await axios.delete(`${API}/projects/${pid}`, { headers: { Authorization: `Bearer ${token}` } });
-      setProjects(projects.filter(p => p.project_id !== pid));
+      setProjects(prev => prev.filter(p => p.project_id !== pid));
       toast.success("Project deleted");
     } catch { toast.error("Delete failed"); }
   };
@@ -70,7 +70,7 @@ const Dashboard = () => {
     e.stopPropagation();
     try {
       const r = await axios.post(`${API}/projects/${pid}/duplicate`, {}, { headers: { Authorization: `Bearer ${token}` } });
-      setProjects([r.data, ...projects]);
+      setProjects(prev => [r.data, ...prev]);
       toast.success("Project duplicated!");
     } catch { toast.error("Duplicate failed"); }
   };
@@ -82,7 +82,7 @@ const Dashboard = () => {
     if (!newTitle || newTitle === proj?.title) return;
     try {
       await axios.patch(`${API}/projects/${pid}`, { title: newTitle }, { headers: { Authorization: `Bearer ${token}` } });
-      setProjects(projects.map(p => p.project_id === pid ? { ...p, title: newTitle } : p));
+      setProjects(prev => prev.map(p => p.project_id === pid ? { ...p, title: newTitle } : p));
       toast.success("Renamed!");
     } catch { toast.error("Rename failed"); }
   };

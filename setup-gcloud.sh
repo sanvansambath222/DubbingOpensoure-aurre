@@ -91,7 +91,7 @@ echo "Frontend built!"
 # Step 8: Create systemd service for backend
 echo ""
 echo "[8/10] Creating backend service..."
-sudo cat > /etc/systemd/system/voxidub-backend.service << SERVICE
+sudo tee /etc/systemd/system/voxidub-backend.service > /dev/null << SERVICE
 [Unit]
 Description=VoxiDub Backend
 After=network.target mongod.service
@@ -116,7 +116,7 @@ echo "Backend service started on port 8001!"
 # Step 9: Configure Nginx
 echo ""
 echo "[9/10] Configuring Nginx..."
-sudo cat > /etc/nginx/sites-available/voxidub << NGINX
+sudo tee /etc/nginx/sites-available/voxidub > /dev/null << NGINX
 server {
     listen 80;
     server_name $SERVER_IP;

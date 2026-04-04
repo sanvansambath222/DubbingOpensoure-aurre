@@ -11,8 +11,8 @@ async function checkLicense(key) {
     });
     return res.data;
   } catch (err) {
-    // If server unreachable, allow offline use for 7 days
-    return { valid: true, offline: true, message: "Offline mode (7 days)" };
+    // If server unreachable, deny access (no offline bypass)
+    return { valid: false, offline: true, message: "Cannot verify license. Check internet connection." };
   }
 }
 

@@ -62,7 +62,7 @@
     "frontend": "100% (Voice Picker Modal with 3 tabs works correctly)"
   },
 
-  "test_credentials": "Session Token: test_session_001, User ID: test-user-001 (temporarily changed to user_49a58c10cb06 for testing projects with actors)",
+  "test_credentials": "Session Token: [REDACTED])",
 
   "seed_data_creation": "Used existing projects proj_d496b94aba2c and proj_e332a33d0335 with actors for Voice Picker testing",
 
@@ -70,7 +70,7 @@
 
   "should_main_agent_self_test": false,
 
-  "context_for_next_testing_agent": "Gemini TTS integration tested successfully. Backend endpoints /api/gemini-voices (30 voices) and /api/gemini-tts-preview (WAV audio) work correctly. Voice Picker Modal now has 3 tabs: Microsoft Edge TTS (free), Gemini TTS (free, 30 AI voices), Google Cloud TTS (premium, 2066 voices). Actor data supports tts_provider ('edge'|'gcloud'|'gemini'), gemini_voice field. GM badge shows in actor card when Gemini voice selected. Test session: test_session_001.",
+  "context_for_next_testing_agent": "Gemini TTS integration tested successfully. Backend endpoints /api/gemini-voices (30 voices) and /api/gemini-tts-preview (WAV audio) work correctly. Voice Picker Modal now has 3 tabs: Microsoft Edge TTS (free), Gemini TTS (free, 30 AI voices), Google Cloud TTS (premium, 2066 voices). Actor data supports tts_provider ('edge'|'gcloud'|'gemini'), gemini_voice field. GM badge shows in actor card when Gemini voice selected. Test session: test_session: [REDACTED].",
 
   "gemini_tts_notes": {
     "total_voices": 30,

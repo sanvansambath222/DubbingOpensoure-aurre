@@ -15,7 +15,7 @@
   },
 
   "passed_tests": [
-    "POST /api/auth/login - Login with test@voxidub.com / test123 returns 200",
+    "POST /api/auth/login - Login with test@voxidub.com / [REDACTED] returns 200",
     "GET /api/projects/proj_1154fafbf78d - MMS test project exists",
     "Project has 2 segments with Khmer translations",
     "Project actor has mms_khmer voice configured",
@@ -52,7 +52,7 @@
     "frontend": "100% (All UI elements working correctly)"
   },
 
-  "test_credentials": "Email: test@voxidub.com, Password: test123, Test Project: proj_1154fafbf78d",
+  "test_credentials": "Email: test@voxidub.com, Password: [REDACTED], Test Project: proj_1154fafbf78d",
 
   "seed_data_creation": "Used existing MMS test project proj_1154fafbf78d with mms_khmer voice",
 

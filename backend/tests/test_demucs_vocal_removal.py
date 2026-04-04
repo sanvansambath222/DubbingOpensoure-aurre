@@ -8,11 +8,14 @@ import os
 import time
 
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
+import pytest
+if not BASE_URL:
+    pytest.skip('REACT_APP_BACKEND_URL required', allow_module_level=True)
 
 # Test credentials
 TEST_EMAIL = "test@voxidub.com"
 TEST_PASSWORD = "test123"
-TEST_PROJECT_ID = "proj_e7169160ad1f"  # Project with uploaded video
+TEST_PROJECT_ID = os.environ.get('TEST_PROJECT_ID', '')  # Set via env var
 
 
 class TestAuth:

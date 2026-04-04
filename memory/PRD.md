@@ -59,6 +59,6 @@ Build a video/audio dubbing platform with AI transcription, translation, TTS voi
 ## Google Cloud Deployment
 - Server: e2-highcpu-4 (4 vCPU, 4GB RAM)
 - Domain: voxidub.com (Spaceship + Cloudflare)
-- IP: 34.177.89.44
+- IP: (see server dashboard)
 - Swap: 4GB (recommended)
 - TMPDIR: /home/voxidub/tmp

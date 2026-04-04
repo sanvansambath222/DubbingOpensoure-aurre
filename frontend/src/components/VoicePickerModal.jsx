@@ -60,7 +60,12 @@ const VoicePickerModal = ({ open, onClose, onSelect, actorGender, actorName, tar
   }, [open, fetchAllVoices]);
 
   const stopPreview = () => {
-    if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
+    if (audioRef.current) {
+      const oldSrc = audioRef.current.src;
+      audioRef.current.pause();
+      audioRef.current = null;
+      if (oldSrc) URL.revokeObjectURL(oldSrc);
+    }
     setPlayingVoice(null);
     setPreviewLoading(null);
   };

@@ -25,17 +25,21 @@ call yarn install
 call yarn build
 if errorlevel 1 (echo ERROR: Failed to build frontend && exit /b 1)
 
-:: Step 4: Copy build to desktop
-echo [4/6] Copying frontend build...
-xcopy /E /I /Y "%~dp0\..\frontend\build" "%~dp0\build"
-
-:: Step 5: Copy backend
-echo [5/6] Copying backend...
-xcopy /E /I /Y "%~dp0\..\backend" "%~dp0\backend" /EXCLUDE:%~dp0\exclude.txt
+:: Step 4: Create exclude list
+echo [4/6] Preparing files...
 echo venv> "%~dp0\exclude.txt"
 echo __pycache__>> "%~dp0\exclude.txt"
 echo tests>> "%~dp0\exclude.txt"
 echo .env>> "%~dp0\exclude.txt"
+
+:: Step 5: Copy frontend build
+echo [5/6] Copying frontend build...
+xcopy /E /I /Y "%~dp0\..\frontend\build" "%~dp0\build"
+if errorlevel 1 (echo ERROR: Failed to copy frontend build && exit /b 1)
+
+:: Step 6: Copy backend
+echo [6/6] Copying backend...
+xcopy /E /I /Y "%~dp0\..\backend" "%~dp0\backend" /EXCLUDE:%~dp0\exclude.txt
 
 :: Step 6: Build .exe
 echo [6/6] Building Windows .exe...

@@ -58,7 +58,7 @@
     "frontend": "100% (All tested features working)"
   },
 
-  "test_credentials": "Email: test@voxidub.com, Password: test123",
+  "test_credentials": "Email: test@voxidub.com, Password: [REDACTED]",
 
   "seed_data_creation": "None - used existing test user",
 

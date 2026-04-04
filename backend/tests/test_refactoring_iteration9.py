@@ -5,10 +5,13 @@ Tests all API endpoints and verifies the refactored code works correctly.
 import pytest
 import requests
 import os
+import pytest
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://khmer-dubbing-hub.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
+if not BASE_URL:
+    pytest.skip('REACT_APP_BACKEND_URL required', allow_module_level=True)
 API_URL = f"{BASE_URL}/api"
-TEST_TOKEN = "test_session_001"
+TEST_TOKEN = os.environ.get('TEST_SESSION_TOKEN', '')
 
 @pytest.fixture
 def auth_headers():

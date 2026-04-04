@@ -29,4 +29,4 @@ RUN mkdir -p /app/uploads
 
 EXPOSE 8001
 
-CMD uvicorn backend.server:app --host 0.0.0.0 --port ${PORT:-8001}
+CMD ["sh", "-c", "uvicorn backend.server:app --host 0.0.0.0 --port ${PORT:-8001}"]

@@ -237,7 +237,7 @@ const Editor = () => {
           }
           setProcessingMsg(null); stopProgressPoll();
         };
-        pollUntilDone();
+        await pollUntilDone();
         return;
       }
       setProject(r.data);
@@ -383,7 +383,8 @@ const Editor = () => {
   };
 
   const updateSegment = async (idx, field, value) => {
-    const updated = [...segments]; updated[idx][field] = value; setSegments(updated);
+    const updated = segments.map((seg, i) => i === idx ? { ...seg, [field]: value } : seg);
+    setSegments(updated);
     setSaveStatus("saving");
     try {
       await axios.patch(`${API}/projects/${projectId}`, { segments: updated }, { headers: { Authorization: `Bearer ${token}` } });

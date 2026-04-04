@@ -54,7 +54,7 @@
 
   "should_main_agent_self_test": false,
 
-  "context_for_next_testing_agent": "YouTube voice extraction feature fully working. Endpoint POST /api/projects/{id}/youtube-voice accepts {url, actor_id} and returns {path, title, duration, size, actor_id}. Custom voice upload endpoint POST /api/projects/{id}/upload-actor-voice accepts multipart form with file and actor_id. Frontend has YouTube URL input and YT button in each actor card. Test session: test_session_001 for user test-user-001. Test project: proj_ad466688a6b2 has 2 actors with SPEAKER_00 having custom_voice set.",
+  "context_for_next_testing_agent": "YouTube voice extraction feature fully working. Endpoint POST /api/projects/{id}/youtube-voice accepts {url, actor_id} and returns {path, title, duration, size, actor_id}. Custom voice upload endpoint POST /api/projects/{id}/upload-actor-voice accepts multipart form with file and actor_id. Frontend has YouTube URL input and YT button in each actor card. Test session: test_session: [REDACTED].",
 
   "features_verified": {
     "youtube_voice_extraction": "POST /api/projects/{id}/youtube-voice - downloads audio from YouTube URL, saves to storage, assigns to actor",

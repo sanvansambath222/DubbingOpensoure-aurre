@@ -86,3 +86,7 @@ uploads/
 # Environment files
 *.env
 *.env.*
+
+# Test reports (may contain credentials)
+test_reports/
+desktop/node_modules/electron/dist/electron

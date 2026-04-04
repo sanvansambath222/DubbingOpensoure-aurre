@@ -40,7 +40,7 @@ function startBackend() {
     ...process.env,
     MONGO_URL: store.get("mongoUrl", "mongodb://localhost:27017/voxidub"),
     DB_NAME: "voxidub",
-    JWT_SECRET: "voxidub_desktop_secret_2026",
+    JWT_SECRET: store.get("jwtSecret", require("crypto").randomBytes(32).toString("hex")),
     EMERGENT_LLM_KEY: store.get("emergentKey", ""),
     DESKTOP_MODE: "true",
   };

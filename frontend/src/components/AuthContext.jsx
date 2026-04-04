@@ -97,6 +97,6 @@ export const AuthCallback = () => {
 export const ProtectedRoute = ({ children }) => {
   const { user, loading, isDark } = useAuth();
   if (loading) return <div className={`min-h-screen flex items-center justify-center ${isDark?'bg-zinc-950':'bg-zinc-50'}`}><Spinner className="w-12 h-12 text-zinc-700 animate-spin" /></div>;
-  if (!user) return null;
+  if (!user) { window.location.href = "/"; return null; }
   return children;
 };

@@ -51,7 +51,7 @@ Create file `desktop/backend/.env`:
 ```
 MONGO_URL=mongodb://localhost:27017/voxidub
 DB_NAME=voxidub
-JWT_SECRET=voxidub_desktop_secret_2026
+JWT_SECRET=<generate-a-unique-random-secret>
 EMERGENT_LLM_KEY=your_key_here
 ```
 

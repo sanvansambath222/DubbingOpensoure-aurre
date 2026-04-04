@@ -47,13 +47,13 @@
     "frontend": "100% (all UI elements verified)"
   },
   
-  "seed_data_creation": "Created test user (test-user-001) and session (test_session_001) for testing",
+  "seed_data_creation": "Created test user (test-user-001) and session (test_session: [REDACTED]",
   
   "retest_needed": false,
   
   "should_main_agent_self_test": false,
   
-  "context_for_next_testing_agent": "Actor features fully implemented and tested. Backend uses Form() for multipart form data parameters. Test credentials: session token 'test_session_001' for user 'test-user-001'. All actor-related endpoints working: upload-actor-voice, PATCH with actors/segments, transcribe-segments returns actors array.",
+  "context_for_next_testing_agent": "Actor features fully implemented and tested. Backend uses Form() for multipart form data parameters. Test credentials: session token 'test_session: [REDACTED].",
   
   "bug_fix_applied": {
     "issue": "upload-actor-voice endpoint was receiving empty actor_id",
