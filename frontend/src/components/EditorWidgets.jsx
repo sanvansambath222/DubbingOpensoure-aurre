@@ -28,6 +28,10 @@ export const ProcessingOverlay = ({ message, isDark, progressInfo, onClose }) =>
   const d = isDark;
   const fmtTime = (s) => { if (!s || s <= 0) return ""; const m = Math.floor(s / 60); const sec = Math.round(s % 60); return m > 0 ? `${m}m ${sec}s` : `${sec}s`; };
   const stepLabels = { transcribing: "Detecting Speakers", translating: "Translating", generating_audio: "Generating Audio", generating_video: "Merging Video", starting: "Starting...", removing_vocals: "Removing Human Voice (AI)", mixing_audio: "Mixing Background Music", voices_ready: "Done! Review voices below." };
+  const isDone = progressInfo?.status === 'done' || progressInfo?.step === 'voices_ready';
+  const isError = progressInfo?.status === 'error' || progressInfo?.step === 'error';
+  const showCloseBtn = isDone || isError;
+  
   return (
   <AnimatePresence>
     {message && (
@@ -36,17 +40,19 @@ export const ProcessingOverlay = ({ message, isDark, progressInfo, onClose }) =>
         <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className={`border rounded-sm p-8 text-center max-w-sm w-full mx-4 shadow-xl ${d?'bg-zinc-900 border-zinc-700':'bg-white border-black/10'}`}>
           <div className="relative w-16 h-16 mx-auto mb-5">
             <div className={`absolute inset-0 rounded-sm border-2 ${d?'border-zinc-700':'border-zinc-200'}`} />
-            <div className="absolute inset-0 rounded-sm border-2 border-transparent border-t-cyan-400 animate-spin" />
-            <div className="absolute inset-2 rounded-sm bg-cyan-500/5 flex items-center justify-center">
-              <Waveform className={`w-6 h-6 ${d?'text-zinc-300':'text-zinc-700'}`} />
+            {!showCloseBtn && <div className="absolute inset-0 rounded-sm border-2 border-transparent border-t-cyan-400 animate-spin" />}
+            {isError && <div className="absolute inset-0 rounded-sm border-2 border-red-500" />}
+            {isDone && <div className="absolute inset-0 rounded-sm border-2 border-emerald-500" />}
+            <div className={`absolute inset-2 rounded-sm flex items-center justify-center ${isError ? 'bg-red-500/10' : isDone ? 'bg-emerald-500/10' : 'bg-cyan-500/5'}`}>
+              <Waveform className={`w-6 h-6 ${isError ? 'text-red-400' : isDone ? 'text-emerald-400' : d?'text-zinc-300':'text-zinc-700'}`} />
             </div>
           </div>
-          <p className={`font-medium text-sm mb-1 ${d?'text-white':'text-zinc-950'}`}>
-            {progressInfo?.step ? (stepLabels[progressInfo.step] || progressInfo.step) : "Processing"}
+          <p className={`font-medium text-sm mb-1 ${isError ? 'text-red-400' : isDone ? (d?'text-emerald-400':'text-emerald-600') : d?'text-white':'text-zinc-950'}`}>
+            {isError ? "Error" : progressInfo?.step ? (stepLabels[progressInfo.step] || progressInfo.step) : "Processing"}
           </p>
           <p className="text-zinc-500 text-xs mb-4">{message}</p>
           
-          {progressInfo?.total > 0 && progressInfo?.progress > 0 && (
+          {!showCloseBtn && progressInfo?.total > 0 && progressInfo?.progress > 0 && (
             <div data-testid="progress-bar-container">
               <div className={`w-full h-2 rounded-full overflow-hidden mb-2 ${d?'bg-zinc-700':'bg-zinc-200'}`}>
                 <motion.div
@@ -73,11 +79,20 @@ export const ProcessingOverlay = ({ message, isDark, progressInfo, onClose }) =>
               )}
             </div>
           )}
-          {progressInfo?.step === 'voices_ready' && onClose && (
+          {showCloseBtn && onClose && (
             <button onClick={onClose} data-testid="processing-done-btn"
-              className={`mt-4 px-6 py-2 rounded-sm text-sm font-semibold transition-colors ${d?'bg-cyan-600 text-white hover:bg-cyan-500':'bg-zinc-950 text-white hover:bg-zinc-800'}`}>
-              Done — Review Voices
+              className={`mt-4 px-6 py-2 rounded-sm text-sm font-semibold transition-colors ${
+                isError 
+                  ? 'bg-red-600 text-white hover:bg-red-500'
+                  : d?'bg-emerald-600 text-white hover:bg-emerald-500':'bg-zinc-950 text-white hover:bg-zinc-800'
+              }`}>
+              {isError ? "Close" : "Done"}
             </button>
+          )}
+          {!showCloseBtn && (
+            <p className={`text-[10px] mt-3 ${d?'text-zinc-600':'text-zinc-400'}`}>
+              You can close this tab. Processing continues on server.
+            </p>
           )}
         </motion.div>
       </motion.div>
