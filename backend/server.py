@@ -1548,25 +1548,29 @@ async def transcribe_segments(project_id: str, authorization: str = Header(None)
                     detect_chat = LlmChat(
                         api_key=EMERGENT_LLM_KEY,
                         session_id=f"roles_{project_id}_{uuid.uuid4().hex[:6]}",
-                        system_message="""You analyze dialogue to identify character ROLES only. Speakers and genders are already detected from audio.
+                        system_message="""You analyze dialogue to identify character ROLES and GENDER.
 
-ROLE DETECTION:
-- Identify the character's role: Narrator, Boss, Wife, Doctor, Student, etc.
-- If character has a proper name (e.g. 杜清禾), translate or romanize it to English (e.g. "Du Qinghe")
+RULES:
+- Identify each character's role: Narrator, Boss, Wife, Husband, Doctor, Student, etc.
+- Detect gender from the dialogue context and role. Examples:
+  - Wife, Mother, Mother-in-law, Sister, Daughter, Aunt, Queen, Girlfriend = "female"
+  - Husband, Father, Father-in-law, Brother, Son, Uncle, King, Boyfriend = "male"
+  - For proper names, infer gender from context clues in the dialogue.
+- If character has a Chinese/Asian name (e.g. 杜清禾), romanize to English (e.g. "Du Qinghe")
 - ALL role names MUST be in English.
 
 Return ONLY JSON array:
-[{"idx": 0, "role": "Boss"}, {"idx": 1, "role": "Wife"}, ...]
-Include ALL indices 0 to """ + str(len(segments)-1) + """. role MUST be in English."""
+[{"idx": 0, "role": "Boss", "gender": "male"}, {"idx": 1, "role": "Wife", "gender": "female"}, ...]
+Include ALL indices 0 to """ + str(len(segments)-1) + """. role MUST be in English. gender MUST be "male" or "female"."""
                     )
                     detect_chat.with_model("openai", "gpt-5.2")
                     
                     dialogue_lines = []
                     for i, s in enumerate(segments):
-                        dialogue_lines.append(f"Line {i} ({s['speaker']}, {s['gender']}): \"{s['original']}\"")
+                        dialogue_lines.append(f"Line {i} ({s['speaker']}): \"{s['original']}\"")
                     all_text = "\n".join(dialogue_lines)
                     
-                    result_text = await detect_chat.send_message(UserMessage(text=f"Identify roles for each line:\n\n{all_text}"))
+                    result_text = await detect_chat.send_message(UserMessage(text=f"Identify roles and gender for each line:\n\n{all_text}"))
                     if "[" in result_text:
                         start_idx = result_text.index("[")
                         end_idx = result_text.rindex("]") + 1
@@ -1577,14 +1581,18 @@ Include ALL indices 0 to """ + str(len(segments)-1) + """. role MUST be in Engli
                             segs = proj.get("segments", [])
                             for r in roles:
                                 idx = r.get("idx", -1)
-                                if 0 <= idx < len(segs) and r.get("role"):
-                                    segs[idx]["role"] = r["role"]
+                                if 0 <= idx < len(segs):
+                                    if r.get("role"):
+                                        segs[idx]["role"] = r["role"]
+                                    if r.get("gender") in ("male", "female"):
+                                        segs[idx]["gender"] = r["gender"]
+                                        segs[idx]["voice"] = "dara" if r["gender"] == "male" else "sophea"
                             new_actors = build_actors_from_segments(segs)
                             await db.projects.update_one(
                                 {"project_id": project_id},
                                 {"$set": {"segments": segs, "actors": new_actors, "updated_at": datetime.now(timezone.utc).isoformat()}}
                             )
-                            logger.info(f"GPT role detection complete (background)")
+                            logger.info(f"GPT role+gender detection complete (background)")
                 except Exception as e:
                     logger.warning(f"GPT role detection failed (non-critical): {e}")
             
@@ -2827,6 +2835,11 @@ async def auto_process(project_id: str, speed: int = Query(2), target_language: 
                 project = await db.projects.find_one({"project_id": project_id}, {"_id": 0})
             
             # STOP HERE - let user review voices before generating audio
+            # Wait briefly for background role+gender detection to finish
+            import asyncio as _asyncio
+            await _asyncio.sleep(3)
+            # Re-read project with latest actors (GPT may have updated genders)
+            project = await db.projects.find_one({"project_id": project_id}, {"_id": 0})
             # Status is now "translated" - user can change voices then call /generate-audio
             queue_status[project_id] = {"position": 0, "status": "done", "step": "voices_ready"}
             

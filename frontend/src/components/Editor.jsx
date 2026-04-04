@@ -515,27 +515,39 @@ const Editor = () => {
   });
 
   const autoProcess = async () => {
-    setProcessingMsg("Auto-processing: Detect → Translate → Audio...");
+    setProcessingMsg("Detecting speakers & translating...");
     startProgressPoll();
     try {
       const r = await axios.post(`${API}/projects/${projectId}/auto-process?speed=${ttsSpeed}&target_language=${targetLanguage}&bg_volume=${bgVolume}`, {}, {
         headers: { Authorization: `Bearer ${token}` }, timeout: 30000
       });
       if (r.data.status === "processing") {
-        toast.info(r.data.message || "Processing in background...");
-        // Poll until done
+        toast.info("Detecting speakers & translating...");
         for (let i = 0; i < 200; i++) {
           await new Promise(res => setTimeout(res, 3000));
           try {
             const proj = await axios.get(`${API}/projects/${projectId}`, { headers: { Authorization: `Bearer ${token}` } });
-            if (proj.data.status === "audio_ready" || proj.data.status === "completed" || proj.data.status === "error") {
-              setProject(proj.data);
-              if (proj.data.segments) setSegments(proj.data.segments);
-              if (proj.data.actors) setActors(proj.data.actors);
-              if (proj.data.dubbed_audio_path) loadFile(proj.data.dubbed_audio_path, 'audio');
-              if (proj.data.status === "error") { toast.error("Audio generation failed"); }
-              else { toast.success("Auto-process complete!"); sendNotification("VoxiDub", "Auto-process complete!"); }
+            // Stop when translated (Phase 1 done) or error
+            if (proj.data.status === "translated" || proj.data.status === "error") {
+              // Wait for GPT role/gender detection to finish (runs in background)
+              await new Promise(res => setTimeout(res, 3000));
+              const latest = await axios.get(`${API}/projects/${projectId}`, { headers: { Authorization: `Bearer ${token}` } });
+              setProject(latest.data);
+              if (latest.data.segments) setSegments(latest.data.segments);
+              if (latest.data.actors) setActors(latest.data.actors);
+              if (proj.data.status === "error") {
+                toast.error("Detection failed");
+              } else {
+                toast.success("Speakers detected! Now change voices, then click Generate Audio.");
+                sendNotification("VoxiDub", "Speakers detected! Change voices now.");
+              }
               break;
+            }
+            // Also check if transcribed (roles still loading) - refresh data
+            if (proj.data.status === "transcribed" && proj.data.segments?.length > 0) {
+              setProject(proj.data);
+              setSegments(proj.data.segments);
+              if (proj.data.actors) setActors(proj.data.actors);
             }
           } catch (err) { console.warn("Poll error:", err.message); }
         }
@@ -543,9 +555,7 @@ const Editor = () => {
         setProject(r.data);
         if (r.data.segments) setSegments(r.data.segments);
         if (r.data.actors) setActors(r.data.actors);
-        if (r.data.dubbed_audio_path) loadFile(r.data.dubbed_audio_path, 'audio');
-        toast.success("Auto-process complete!");
-        sendNotification("VoxiDub", "Auto-process complete!");
+        toast.success("Speakers detected! Now change voices, then click Generate Audio.");
       }
     } catch (e) { toast.error(e.response?.data?.detail || "Auto-process failed"); }
     finally { setProcessingMsg(null); stopProgressPoll(); }
@@ -735,12 +745,24 @@ const Editor = () => {
               )}
             </div>
 
-            {project?.original_filename && !audioUrl && (
+            {project?.original_filename && !audioUrl && !segments.some(s => s.translated) && (
               <button onClick={autoProcess} disabled={!!processingMsg} data-testid="auto-process-btn"
                 className="w-full py-3 bg-gradient-to-r from-cyan-500/15 to-blue-500/15 border border-zinc-950/20 text-zinc-700 text-xs font-semibold rounded-sm hover:from-cyan-500/25 hover:to-blue-500/25 transition-all disabled:opacity-40 flex items-center justify-center gap-1.5">
                 <Spinner className={`w-3.5 h-3.5 ${processingMsg ? 'animate-spin' : ''}`} />
-                {processingMsg ? 'Processing...' : 'Auto Process (Detect → Translate → Audio)'}
+                {processingMsg ? 'Processing...' : 'Auto Process (Detect → Translate)'}
               </button>
+            )}
+
+            {segments.some(s => s.translated) && !audioUrl && (
+              <div className={`rounded-sm p-3 border-2 border-dashed ${d?'border-emerald-600 bg-emerald-900/20':'border-emerald-400 bg-emerald-50'}`} data-testid="voice-review-notice">
+                <p className={`text-xs font-bold mb-1 ${d?'text-emerald-300':'text-emerald-700'}`}>
+                  Change voices above, then:
+                </p>
+                <button onClick={() => fetchProject()} data-testid="refresh-actors-btn"
+                  className={`w-full py-1.5 mb-2 border text-[10px] font-medium rounded-sm transition-all ${d?'bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-700':'bg-white border-zinc-300 text-zinc-600 hover:bg-zinc-100'}`}>
+                  <ArrowsClockwise className="w-3 h-3 inline mr-1" /> Refresh Actors
+                </button>
+              </div>
             )}
 
             {originalVideoUrl && (
@@ -816,7 +838,7 @@ const Editor = () => {
             {segments.some(s => s.translated || s.custom_audio) && (
               <button onClick={generateAudio} disabled={!!processingMsg} data-testid="generate-audio-btn"
                 className="w-full py-2.5 bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold rounded-sm hover:bg-emerald-100 transition-all disabled:opacity-40">
-                <SpeakerHigh className="w-3.5 h-3.5 inline mr-1" /> Generate Khmer Audio
+                <SpeakerHigh className="w-3.5 h-3.5 inline mr-1" /> Generate {OUTPUT_LANGUAGES[targetLanguage]?.name || "Khmer"} Audio
               </button>
             )}
 
