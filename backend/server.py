@@ -2803,16 +2803,16 @@ async def auto_process(project_id: str, speed: int = Query(2), target_language: 
         return {"status": "processing", "message": "Already processing. Please wait..."}
     
     import time as _time
-    queue_status[project_id] = {"position": 0, "status": "processing", "step": "starting", "progress": 0, "total": 3, "started_at": _time.time()}
+    queue_status[project_id] = {"position": 0, "status": "processing", "step": "starting", "progress": 0, "total": 2, "started_at": _time.time()}
     
     auth_header = f"Bearer {authorization.split('Bearer ')[-1] if 'Bearer ' in (authorization or '') else authorization}"
     
     async def _auto_process_background():
         nonlocal project
         try:
-            # Step 1: Transcribe (if not done)
+            # Step 1: Transcribe + Detect Speakers (if not done)
             if project.get("status") in ["created", "uploaded"]:
-                queue_status[project_id].update({"step": "transcribing", "progress": 0, "total": 3})
+                queue_status[project_id].update({"step": "transcribing", "progress": 0, "total": 2})
                 await db.projects.update_one(
                     {"project_id": project_id},
                     {"$set": {"status": "transcribing", "updated_at": datetime.now(timezone.utc).isoformat()}}
@@ -2822,18 +2822,13 @@ async def auto_process(project_id: str, speed: int = Query(2), target_language: 
             
             # Step 2: Translate (if not done)
             if project.get("status") == "transcribed":
-                queue_status[project_id].update({"step": "translating", "progress": 1, "total": 3})
+                queue_status[project_id].update({"step": "translating", "progress": 1, "total": 2})
                 await translate_segments(project_id, target_language=target_language, authorization=auth_header)
                 project = await db.projects.find_one({"project_id": project_id}, {"_id": 0})
             
-            # Step 3: Generate audio (if not done)
-            if project.get("status") == "translated":
-                queue_status[project_id].update({"step": "generating_audio", "progress": 2, "total": 3})
-                segments = project.get("segments", [])
-                await _generate_audio_sync(project_id, project, segments, speed, user, bg_volume)
-                project = await db.projects.find_one({"project_id": project_id}, {"_id": 0})
-            
-            queue_status[project_id] = {"position": 0, "status": "done", "step": "done"}
+            # STOP HERE - let user review voices before generating audio
+            # Status is now "translated" - user can change voices then call /generate-audio
+            queue_status[project_id] = {"position": 0, "status": "done", "step": "voices_ready"}
             
         except Exception as e:
             queue_status[project_id] = {"position": 0, "status": "error", "step": "error"}
@@ -2844,7 +2839,7 @@ async def auto_process(project_id: str, speed: int = Query(2), target_language: 
             )
     
     asyncio.create_task(_auto_process_background())
-    return {"status": "processing", "message": "Auto-processing started. Detecting speakers, translating, generating audio..."}
+    return {"status": "processing", "message": "Detecting speakers & translating. You can change voices before generating audio."}
 
 # ============================================================
 # TOOLS API ENDPOINTS (standalone video/audio tools)
