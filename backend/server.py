@@ -1298,7 +1298,7 @@ async def telegram_generate_code(authorization: str = Header(None)):
         "created_at": datetime.now(timezone.utc).isoformat(),
         "expires_at": (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat()
     })
-    return {"code": code, "bot_username": "VoxiDubBot", "expires_in": 600}
+    return {"code": code, "bot_username": "VoxiDub_bot", "expires_in": 600}
 
 @api_router.get("/telegram/status")
 async def telegram_status(authorization: str = Header(None)):

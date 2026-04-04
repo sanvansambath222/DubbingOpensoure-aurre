@@ -93,7 +93,7 @@ const TelegramConnect = ({ token, isDark }) => {
               </div>
               <div className="space-y-3">
                 <p className={`text-xs ${d?'text-zinc-400':'text-zinc-600'}`}>
-                  1. Open Telegram and search <strong>@VoxiDubBot</strong>
+                  1. Open Telegram and search <strong>@VoxiDub_bot</strong>
                 </p>
                 <p className={`text-xs ${d?'text-zinc-400':'text-zinc-600'}`}>
                   2. Click <strong>Start</strong> in the bot
