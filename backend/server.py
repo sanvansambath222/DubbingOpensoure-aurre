@@ -765,7 +765,8 @@ AUTO_PROCESS_TIMEOUT_MS = 600000
 
 # ===== Telegram Bot Integration =====
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
-_telegram_link_codes = {}  # {code: user_id}
+
+# Telegram link codes stored in MongoDB (survives restart)
 
 async def send_telegram_video(chat_id: int, video_path: str, caption: str = ""):
     """Send a video file to a Telegram user."""
@@ -831,13 +832,21 @@ async def run_telegram_polling():
                     if text == "/start":
                         await send_telegram_message(chat_id, "Welcome to VoxiDub.AI Bot!\n\nTo link your account:\n1. Go to voxidub.com → Dashboard\n2. Click 'Connect Telegram'\n3. Copy the code\n4. Paste it here\n\nAfter linking, your dubbed videos will be sent here automatically!")
                     elif text.startswith("VXD-"):
-                        # User sent a link code
+                        # User sent a link code — check MongoDB
                         code = text.strip()
-                        if code in _telegram_link_codes:
-                            user_id = _telegram_link_codes.pop(code)
-                            await db.users.update_one({"user_id": user_id}, {"$set": {"telegram_chat_id": chat_id}})
-                            await send_telegram_message(chat_id, "Account linked successfully! Your dubbed videos will be sent here automatically.")
-                            logger.info(f"Telegram linked: user={user_id} chat_id={chat_id}")
+                        code_doc = await db.telegram_codes.find_one({"code": code})
+                        if code_doc:
+                            # Check if expired
+                            expires_at = code_doc.get("expires_at", "")
+                            if expires_at and datetime.fromisoformat(expires_at) < datetime.now(timezone.utc):
+                                await db.telegram_codes.delete_one({"code": code})
+                                await send_telegram_message(chat_id, "Code expired. Please get a new code from voxidub.com")
+                            else:
+                                user_id = code_doc["user_id"]
+                                await db.telegram_codes.delete_one({"code": code})
+                                await db.users.update_one({"user_id": user_id}, {"$set": {"telegram_chat_id": chat_id}})
+                                await send_telegram_message(chat_id, "Account linked successfully! Your dubbed videos will be sent here automatically.")
+                                logger.info(f"Telegram linked: user={user_id} chat_id={chat_id}")
                         else:
                             await send_telegram_message(chat_id, "Invalid or expired code. Please get a new code from voxidub.com → Dashboard → Connect Telegram.")
                     else:
@@ -1229,12 +1238,14 @@ async def telegram_generate_code(authorization: str = Header(None)):
     user = await get_current_user(authorization)
     import random, string
     code = "VXD-" + "".join(random.choices(string.ascii_uppercase + string.digits, k=6))
-    _telegram_link_codes[code] = user.user_id
-    # Auto-expire code after 10 minutes
-    async def expire_code():
-        await asyncio.sleep(600)
-        _telegram_link_codes.pop(code, None)
-    asyncio.create_task(expire_code())
+    # Save to MongoDB (survives restart)
+    await db.telegram_codes.delete_many({"user_id": user.user_id})  # Remove old codes
+    await db.telegram_codes.insert_one({
+        "code": code,
+        "user_id": user.user_id,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "expires_at": (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat()
+    })
     return {"code": code, "bot_username": "VoxiDubBot", "expires_in": 600}
 
 @api_router.get("/telegram/status")
