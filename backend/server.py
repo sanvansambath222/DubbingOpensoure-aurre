@@ -2557,6 +2557,23 @@ async def generate_video(project_id: str, burn_subtitles: bool = Query(False), a
                 sent = await send_telegram_video(tg_chat_id, local_path, caption)
                 if sent:
                     logger.info(f"Telegram: sent video to chat_id={tg_chat_id} for project={project_id}")
+                    # Auto-delete project files after sending to Telegram (save disk space)
+                    try:
+                        for key in ["original_file_path", "dubbed_audio_path", "dubbed_video_path", "extracted_audio_path"]:
+                            file_path = project_doc.get(key)
+                            if file_path:
+                                try:
+                                    delete_object(file_path)
+                                except Exception:
+                                    pass
+                        proj_dir = str(LOCAL_STORAGE_DIR / APP_NAME / "uploads" / user.user_id / project_id)
+                        if os.path.isdir(proj_dir):
+                            import shutil
+                            shutil.rmtree(proj_dir, ignore_errors=True)
+                        await db.projects.delete_one({"project_id": project_id})
+                        logger.info(f"Auto-deleted project {project_id} after Telegram send")
+                    except Exception as del_err:
+                        logger.warning(f"Auto-delete after Telegram failed: {del_err}")
                 else:
                     logger.warning(f"Telegram: failed to send video to chat_id={tg_chat_id}")
         except Exception as tg_err:
