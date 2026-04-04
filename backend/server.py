@@ -765,25 +765,44 @@ AUTO_PROCESS_TIMEOUT_MS = 600000
 
 # ===== Telegram Bot Integration =====
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+TELEGRAM_LOCAL_API = os.environ.get("TELEGRAM_LOCAL_API", "")
+
+def _tg_base_url():
+    """Return Telegram API base URL. Uses local server if available (2GB file support)."""
+    if TELEGRAM_LOCAL_API:
+        return f"{TELEGRAM_LOCAL_API}/bot{TELEGRAM_BOT_TOKEN}"
+    return f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
 
 # Telegram link codes stored in MongoDB (survives restart)
 
 async def send_telegram_video(chat_id: int, video_path: str, caption: str = "", project_id: str = ""):
-    """Send a video file to a Telegram user. Compress if >50MB, send link if still too big."""
+    """Send a video file to a Telegram user. Uses local API for files up to 2GB."""
     if not TELEGRAM_BOT_TOKEN or not chat_id:
         return False
     try:
         file_size = os.path.getsize(video_path)
+        base = _tg_base_url()
+        
+        # Local API supports up to 2GB — send directly
+        if TELEGRAM_LOCAL_API and file_size < 2 * 1024 * 1024 * 1024:
+            url = f"{base}/sendDocument"
+            async with httpx.AsyncClient(timeout=300) as client:
+                with open(video_path, "rb") as f:
+                    resp = await client.post(url, data={"chat_id": chat_id, "caption": caption[:1024]},
+                        files={"document": (os.path.basename(video_path), f, "video/mp4")})
+            logger.info(f"Telegram local API send: {resp.status_code} size={file_size//(1024*1024)}MB")
+            return resp.status_code == 200
+        
+        # Standard API — compress if needed
         send_path = video_path
         compressed = False
         
-        # If file > 45MB, try to compress first
         if file_size > 45 * 1024 * 1024:
             try:
                 compressed_path = video_path.rsplit(".", 1)[0] + "_tg.mp4"
                 cmd = [
                     "ffmpeg", "-y", "-i", video_path,
-                    "-vf", "scale=-2:480",  # 480p
+                    "-vf", "scale=-2:480",
                     "-c:v", "libx264", "-preset", "fast", "-crf", "28",
                     "-c:a", "aac", "-b:a", "96k",
                     "-movflags", "+faststart",
@@ -795,27 +814,22 @@ async def send_telegram_video(chat_id: int, video_path: str, caption: str = "", 
                     if compressed_size < 49 * 1024 * 1024:
                         send_path = compressed_path
                         compressed = True
-                        logger.info(f"Telegram: compressed {file_size//(1024*1024)}MB → {compressed_size//(1024*1024)}MB")
                     else:
                         os.unlink(compressed_path)
             except Exception as ce:
                 logger.warning(f"Telegram compress failed: {ce}")
         
-        # Check final file size
         final_size = os.path.getsize(send_path)
         
         if final_size > 49 * 1024 * 1024:
-            # Still too big — send download link
             site_url = os.environ.get("SITE_URL", "https://voxidub.com")
-            download_url = f"{site_url}/dashboard"
-            msg = f"Your dubbed video is ready! ({file_size//(1024*1024)}MB)\n\nToo large for Telegram. Download from website:\n{download_url}\n\n(Link available for 6 hours)\n\nPowered by VoxiDub.AI"
+            msg = f"Your dubbed video is ready! ({file_size//(1024*1024)}MB)\n\nDownload: {site_url}/dashboard\n\nPowered by VoxiDub.AI"
             await send_telegram_message(chat_id, msg)
-            if compressed and os.path.exists(send_path) and send_path != video_path:
+            if compressed and send_path != video_path and os.path.exists(send_path):
                 os.unlink(send_path)
             return True
         
-        # Send file to Telegram
-        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendDocument"
+        url = f"{base}/sendDocument"
         if compressed:
             caption += "\n(Compressed for Telegram)"
         async with httpx.AsyncClient(timeout=180) as client:
@@ -823,8 +837,7 @@ async def send_telegram_video(chat_id: int, video_path: str, caption: str = "", 
                 resp = await client.post(url, data={"chat_id": chat_id, "caption": caption[:1024]},
                     files={"document": (os.path.basename(send_path), f, "video/mp4")})
         
-        # Cleanup compressed file
-        if compressed and os.path.exists(send_path) and send_path != video_path:
+        if compressed and send_path != video_path and os.path.exists(send_path):
             os.unlink(send_path)
         
         return resp.status_code == 200
@@ -837,7 +850,7 @@ async def send_telegram_message(chat_id: int, text: str):
     if not TELEGRAM_BOT_TOKEN or not chat_id:
         return False
     try:
-        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+        url = f"{_tg_base_url()}/sendMessage"
         async with httpx.AsyncClient(timeout=30) as client:
             resp = await client.post(url, json={"chat_id": chat_id, "text": text})
             return resp.status_code == 200
@@ -854,7 +867,7 @@ async def run_telegram_polling():
     logger.info("Telegram bot polling started")
     while True:
         try:
-            url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates"
+            url = f"{_tg_base_url()}/getUpdates"
             async with httpx.AsyncClient(timeout=30) as client:
                 resp = await client.get(url, params={"offset": last_update_id + 1, "timeout": 10})
                 if resp.status_code != 200:
