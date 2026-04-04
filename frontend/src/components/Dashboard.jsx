@@ -5,10 +5,126 @@ import { toast } from "sonner";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Plus, Spinner, VideoCamera, FilmStrip, Trash,
-  CopySimple, PencilSimple, SignOut, MicrophoneStage, Calendar, Clock, Wrench
+  CopySimple, PencilSimple, SignOut, MicrophoneStage, Calendar, Clock, Wrench, TelegramLogo
 } from "@phosphor-icons/react";
 import { useAuth, ThemeToggle } from "./AuthContext";
 import { API } from "./constants";
+
+// Telegram connect component
+const TelegramConnect = ({ token, isDark }) => {
+  const d = isDark;
+  const [status, setStatus] = useState(null);
+  const [code, setCode] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+
+  const checkStatus = useCallback(async () => {
+    try {
+      const r = await axios.get(`${API}/telegram/status`, { headers: { Authorization: `Bearer ${token}` } });
+      setStatus(r.data);
+    } catch {}
+  }, [token]);
+
+  useEffect(() => { checkStatus(); }, [checkStatus]);
+
+  const generateCode = async () => {
+    setLoading(true);
+    try {
+      const r = await axios.post(`${API}/telegram/generate-code`, {}, { headers: { Authorization: `Bearer ${token}` } });
+      setCode(r.data.code);
+      setShowModal(true);
+    } catch { toast.error("Failed to generate code"); }
+    finally { setLoading(false); }
+  };
+
+  const unlinkTelegram = async () => {
+    if (!window.confirm("Unlink Telegram? You won't receive dubbed videos anymore.")) return;
+    try {
+      await axios.post(`${API}/telegram/unlink`, {}, { headers: { Authorization: `Bearer ${token}` } });
+      setStatus({ linked: false });
+      toast.success("Telegram unlinked");
+    } catch { toast.error("Failed to unlink"); }
+  };
+
+  const copyCode = () => {
+    navigator.clipboard.writeText(code);
+    toast.success("Code copied!");
+  };
+
+  // Poll for link status when modal is open
+  useEffect(() => {
+    if (!showModal) return;
+    const interval = setInterval(async () => {
+      const r = await axios.get(`${API}/telegram/status`, { headers: { Authorization: `Bearer ${token}` } });
+      if (r.data.linked) {
+        setStatus(r.data);
+        setShowModal(false);
+        toast.success("Telegram connected!");
+      }
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [showModal, token]);
+
+  return (
+    <>
+      {status?.linked ? (
+        <button onClick={unlinkTelegram} data-testid="telegram-linked-btn"
+          className={`px-3 py-1.5 text-xs font-medium rounded-sm flex items-center gap-1.5 transition-colors ${d?'bg-sky-900/40 text-sky-400 border border-sky-800 hover:bg-sky-900/60':'bg-sky-50 text-sky-600 border border-sky-200 hover:bg-sky-100'}`}>
+          <TelegramLogo className="w-3.5 h-3.5" weight="fill" /> Connected
+        </button>
+      ) : (
+        <button onClick={generateCode} disabled={loading} data-testid="connect-telegram-btn"
+          className={`px-3 py-1.5 text-xs font-medium rounded-sm flex items-center gap-1.5 transition-colors ${d?'bg-sky-900/40 text-sky-400 border border-sky-800 hover:bg-sky-900/60':'bg-sky-50 text-sky-600 border border-sky-200 hover:bg-sky-100'}`}>
+          <TelegramLogo className="w-3.5 h-3.5" weight="fill" /> {loading ? "..." : "Connect Telegram"}
+        </button>
+      )}
+
+      {/* Link Modal */}
+      <AnimatePresence>
+        {showModal && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center" onClick={() => setShowModal(false)}>
+            <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} exit={{ scale: 0.9 }}
+              className={`border rounded-sm p-6 max-w-sm w-full mx-4 shadow-xl ${d?'bg-zinc-900 border-zinc-700':'bg-white border-black/10'}`}
+              onClick={e => e.stopPropagation()}>
+              <div className="flex items-center gap-2 mb-4">
+                <TelegramLogo className="w-6 h-6 text-sky-500" weight="fill" />
+                <h3 className={`font-semibold text-base ${d?'text-white':'text-zinc-950'}`}>Connect Telegram</h3>
+              </div>
+              <div className="space-y-3">
+                <p className={`text-xs ${d?'text-zinc-400':'text-zinc-600'}`}>
+                  1. Open Telegram and search <strong>@VoxiDubBot</strong>
+                </p>
+                <p className={`text-xs ${d?'text-zinc-400':'text-zinc-600'}`}>
+                  2. Click <strong>Start</strong> in the bot
+                </p>
+                <p className={`text-xs ${d?'text-zinc-400':'text-zinc-600'}`}>
+                  3. Send this code to the bot:
+                </p>
+                <div className={`flex items-center gap-2 p-3 rounded-sm ${d?'bg-zinc-800':'bg-zinc-100'}`}>
+                  <code className={`text-lg font-bold flex-1 tracking-wider ${d?'text-cyan-400':'text-cyan-600'}`} data-testid="telegram-code">{code}</code>
+                  <button onClick={copyCode} className={`p-1.5 rounded-sm transition-colors ${d?'hover:bg-zinc-700 text-zinc-400':'hover:bg-zinc-200 text-zinc-500'}`}>
+                    <CopySimple className="w-4 h-4" />
+                  </button>
+                </div>
+                <p className={`text-[10px] ${d?'text-zinc-600':'text-zinc-400'}`}>
+                  Code expires in 10 minutes. Waiting for link...
+                </p>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 border-2 border-t-transparent border-sky-400 rounded-full animate-spin" />
+                  <span className={`text-[10px] ${d?'text-zinc-500':'text-zinc-400'}`}>Waiting for you to send the code...</span>
+                </div>
+              </div>
+              <button onClick={() => setShowModal(false)} className={`mt-4 w-full py-2 text-xs font-semibold rounded-sm transition-colors ${d?'bg-zinc-800 text-white hover:bg-zinc-700':'bg-zinc-100 text-zinc-700 hover:bg-zinc-200'}`}>
+                Close
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
+  );
+};
 
 // Step progress dots
 const StepDots = ({ status, isDark }) => {
@@ -107,6 +223,7 @@ const Dashboard = () => {
             <span className={`text-xl font-bold tracking-tight ${d?'text-white':'text-zinc-950'}`} style={{fontFamily:"'Outfit',sans-serif"}}>VoxiDub.AI</span>
           </div>
           <div className="flex items-center gap-3">
+            <TelegramConnect token={token} isDark={d} />
             <ThemeToggle />
             <span className={`text-xs ${d?'text-zinc-500':'text-zinc-400'}`}>{user?.email}</span>
             <button onClick={logout} data-testid="logout-btn"

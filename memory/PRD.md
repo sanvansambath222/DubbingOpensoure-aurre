@@ -1,68 +1,74 @@
 # VoxiDub - PRD
 
 ## Problem Statement
-Build a video/audio dubbing platform with AI transcription, translation, TTS voices, subtitle editing, AI vocal removal, standalone video/audio tools, desktop .exe app, and Google Cloud deployment.
+Build a video/audio dubbing platform with AI transcription, translation, TTS voices, subtitle editing, AI vocal removal, standalone video/audio tools, Telegram delivery, and Google Cloud deployment.
 
 ## Architecture
 - Frontend: React | Backend: FastAPI | Database: MongoDB | Storage: Local
 - Auth: Email/Password + Google OAuth
-- Production: Google Cloud VM + voxidub.com (Cloudflare)
-- Desktop: Electron + Python backend
+- Production: Google Cloud VM (34.177.89.44) + voxidub.com domain + SSL
+- Telegram Bot: @VoxiDubBot for auto video delivery
 
 ## Completed Features
 - [x] Video/audio upload and processing
 - [x] Whisper transcription + GPT-5.2 translation
-- [x] Edge TTS: Piseth (male) + Sreymom (female) -- default auto-process
-- [x] Meta MMS Khmer TTS: Normal speed (1.0)
-- [x] 322 Edge TTS voices across 75 languages
-- [x] Voice preview + search in all tools
+- [x] Edge TTS: Piseth (male) + Sreymom (female) — default voices
+- [x] Meta MMS Khmer TTS: Boy + Girl (normal speed)
 - [x] SpeechBrain ECAPA-TDNN speaker diarization
-- [x] Autocorrelation F0 pitch gender detection
+- [x] Autocorrelation F0 pitch gender detection (median, threshold 175Hz)
+- [x] GPT role-name gender override (Husband→male, Wife→female, etc.)
 - [x] Demucs AI vocal removal (chunked)
-- [x] 9 Standalone Tools
-- [x] Professional Tools page with drag & drop UI
-- [x] VoxiDub.AI logo (round icon + name) in all navbars
-- [x] No "free" text anywhere (paid product)
-- [x] 10-minute video upload limit + 500MB size limit
+- [x] Background async processing
+- [x] 9 Standalone Tools (Voice Replace, Subtitles, Translate, Trim, AI Clips, TTS, Resize, Convert, Add Logo)
+- [x] 322 Edge TTS voices across 75 languages with search
+- [x] Voice preview (play before select)
+- [x] VoxiDub.AI logo (round icon + text) in navbar
+- [x] Favicon updated to VoxiDub logo
+- [x] 10-minute / 500MB video upload limit
 - [x] Auto-delete projects after 6 hours
-- [x] Google Cloud deployment (voxidub.com)
-- [x] SSL/HTTPS via Let's Encrypt
-- [x] Nginx reverse proxy configured
-- [x] License key system API (generate/check/activate)
-- [x] Desktop app structure (Electron + build scripts)
-- [x] 2-Phase Auto Process: Detect+Translate first, then user changes voices, then Generate Audio
-- [x] GPT role+gender detection: Detects both character role AND gender from dialogue context
-- [x] Voice review notice with Refresh Actors button after Phase 1
-- [x] Dynamic language name on Generate Audio button
+- [x] Processing overlay with Done/Error close buttons
+- [x] "You can close this tab" message during processing
+- [x] Domain: voxidub.com + SSL (Let's Encrypt)
+- [x] **Telegram Bot Integration** — auto-send dubbed videos to user's Telegram
+- [x] **Connect Telegram** button on dashboard with code-based linking
 
-## Desktop App (.exe)
-- `/app/desktop/` -- Electron project
-- `main.js` -- Electron main process, starts Python backend
-- `preload.js` -- Bridge between Electron and React
-- `license.js` -- License key validation
-- `splash.html` -- Loading screen
-- `build-win.bat` -- Auto build script
-- `BUILD_GUIDE.md` -- Complete build instructions
-- License API: POST /api/license/check, /activate, /generate
+## Telegram Integration
+### Flow:
+1. User clicks "Connect Telegram" on dashboard
+2. Gets code like VXD-WT8M66
+3. Opens @VoxiDubBot, sends code
+4. Account linked
+5. After dubbing → bot auto-sends video to user's private Telegram
+6. Server deletes files → 0 disk space
+7. User keeps video on Telegram forever (free)
+
+### Endpoints:
+- POST /api/telegram/generate-code
+- GET /api/telegram/status
+- POST /api/telegram/unlink
 
 ## Upcoming Tasks
-- [ ] Stripe payment (Free/Basic/Pro plans) (P0)
+- [ ] Stripe payment (Free/Basic/Pro/Business) (P0)
 - [ ] Usage limits per plan (P0)
-- [ ] Cloudflare protection setup (P0)
-- [ ] Queue system for multiple users (P1)
+- [ ] Queue system for multiple users (P0)
+- [ ] Cloudflare protection (P1)
 
 ## Future Tasks
-- [ ] Telegram bot integration (P1)
-- [ ] Cloud APIs (Replicate) for heavy processing (P1)
-- [ ] AI voice cloning -- needs GPU (P2)
+- [ ] AI voice cloning - needs GPU (P1)
 - [ ] Mobile-friendly layout (P2)
 - [ ] Export different video quality (P2)
 - [ ] Team workspace (P3)
 - [ ] Refactor server.py into routes/services (P1)
 
 ## Google Cloud Deployment
-- Server: e2-highcpu-4 (4 vCPU, 4GB RAM)
-- Domain: voxidub.com (Spaceship + Cloudflare)
-- IP: (see server dashboard)
-- Swap: 4GB (recommended)
-- TMPDIR: /home/voxidub/tmp
+- Server: e2-highcpu-4 (4 vCPU, 4GB RAM), Debian 13
+- IP: 34.177.89.44
+- Domain: voxidub.com (SSL via Let's Encrypt)
+- Update commands:
+  ```
+  cd /home/voxidub
+  git fetch origin main
+  git reset --hard origin/main
+  cd frontend && yarn build
+  sudo systemctl restart voxidub-backend
+  ```

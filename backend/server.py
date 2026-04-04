@@ -763,6 +763,89 @@ POLL_INTERVAL_S = 1.5
 REQUEST_TIMEOUT_MS = 300000
 AUTO_PROCESS_TIMEOUT_MS = 600000
 
+# ===== Telegram Bot Integration =====
+TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+_telegram_link_codes = {}  # {code: user_id}
+
+async def send_telegram_video(chat_id: int, video_path: str, caption: str = ""):
+    """Send a video file to a Telegram user."""
+    if not TELEGRAM_BOT_TOKEN or not chat_id:
+        return False
+    try:
+        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendDocument"
+        file_size = os.path.getsize(video_path)
+        if file_size > 50 * 1024 * 1024:  # 50MB Telegram limit
+            # Try to send as message with download link instead
+            url_msg = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+            async with httpx.AsyncClient(timeout=30) as client:
+                await client.post(url_msg, json={
+                    "chat_id": chat_id,
+                    "text": f"Your dubbed video is ready but too large for Telegram (>{file_size // (1024*1024)}MB). Please download from the website."
+                })
+            return False
+        async with httpx.AsyncClient(timeout=120) as client:
+            with open(video_path, "rb") as f:
+                resp = await client.post(url, data={"chat_id": chat_id, "caption": caption[:1024]},
+                    files={"document": (os.path.basename(video_path), f, "video/mp4")})
+            return resp.status_code == 200
+    except Exception as e:
+        logger.error(f"Telegram send error: {e}")
+        return False
+
+async def send_telegram_message(chat_id: int, text: str):
+    """Send a text message to a Telegram user."""
+    if not TELEGRAM_BOT_TOKEN or not chat_id:
+        return False
+    try:
+        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.post(url, json={"chat_id": chat_id, "text": text})
+            return resp.status_code == 200
+    except Exception as e:
+        logger.error(f"Telegram message error: {e}")
+        return False
+
+async def run_telegram_polling():
+    """Background task: poll Telegram for link codes from users."""
+    if not TELEGRAM_BOT_TOKEN:
+        logger.info("Telegram bot token not set, skipping polling")
+        return
+    last_update_id = 0
+    logger.info("Telegram bot polling started")
+    while True:
+        try:
+            url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates"
+            async with httpx.AsyncClient(timeout=30) as client:
+                resp = await client.get(url, params={"offset": last_update_id + 1, "timeout": 10})
+                if resp.status_code != 200:
+                    await asyncio.sleep(5)
+                    continue
+                data = resp.json()
+                for update in data.get("result", []):
+                    last_update_id = update["update_id"]
+                    msg = update.get("message", {})
+                    chat_id = msg.get("chat", {}).get("id")
+                    text = (msg.get("text") or "").strip()
+                    if not chat_id or not text:
+                        continue
+                    if text == "/start":
+                        await send_telegram_message(chat_id, "Welcome to VoxiDub.AI Bot!\n\nTo link your account:\n1. Go to voxidub.com → Dashboard\n2. Click 'Connect Telegram'\n3. Copy the code\n4. Paste it here\n\nAfter linking, your dubbed videos will be sent here automatically!")
+                    elif text.startswith("VXD-"):
+                        # User sent a link code
+                        code = text.strip()
+                        if code in _telegram_link_codes:
+                            user_id = _telegram_link_codes.pop(code)
+                            await db.users.update_one({"user_id": user_id}, {"$set": {"telegram_chat_id": chat_id}})
+                            await send_telegram_message(chat_id, "Account linked successfully! Your dubbed videos will be sent here automatically.")
+                            logger.info(f"Telegram linked: user={user_id} chat_id={chat_id}")
+                        else:
+                            await send_telegram_message(chat_id, "Invalid or expired code. Please get a new code from voxidub.com → Dashboard → Connect Telegram.")
+                    else:
+                        await send_telegram_message(chat_id, "Send me your link code from voxidub.com to connect your account.\n\nFormat: VXD-XXXXXX")
+        except Exception as e:
+            logger.error(f"Telegram polling error: {e}")
+        await asyncio.sleep(2)
+
 
 # FastAPI app
 app = FastAPI()
@@ -785,6 +868,7 @@ class User(BaseModel):
     password_hash: Optional[str] = None
     auth_provider: Optional[str] = None
     created_at: str
+    telegram_chat_id: Optional[int] = None
 
 class ProjectCreate(BaseModel):
     title: str
@@ -1135,6 +1219,37 @@ async def logout(authorization: str = Header(None)):
         token = authorization.replace("Bearer ", "") if authorization.startswith("Bearer ") else authorization
     if token:
         await db.user_sessions.delete_one({"session_token": token})
+    return {"success": True}
+
+# ===== Telegram Link Endpoints =====
+
+@api_router.post("/telegram/generate-code")
+async def telegram_generate_code(authorization: str = Header(None)):
+    """Generate a one-time code for linking Telegram account."""
+    user = await get_current_user(authorization)
+    import random, string
+    code = "VXD-" + "".join(random.choices(string.ascii_uppercase + string.digits, k=6))
+    _telegram_link_codes[code] = user.user_id
+    # Auto-expire code after 10 minutes
+    async def expire_code():
+        await asyncio.sleep(600)
+        _telegram_link_codes.pop(code, None)
+    asyncio.create_task(expire_code())
+    return {"code": code, "bot_username": "VoxiDubBot", "expires_in": 600}
+
+@api_router.get("/telegram/status")
+async def telegram_status(authorization: str = Header(None)):
+    """Check if user has Telegram linked."""
+    user = await get_current_user(authorization)
+    user_doc = await db.users.find_one({"user_id": user.user_id})
+    chat_id = user_doc.get("telegram_chat_id") if user_doc else None
+    return {"linked": chat_id is not None, "chat_id": chat_id}
+
+@api_router.post("/telegram/unlink")
+async def telegram_unlink(authorization: str = Header(None)):
+    """Unlink Telegram account."""
+    user = await get_current_user(authorization)
+    await db.users.update_one({"user_id": user.user_id}, {"$unset": {"telegram_chat_id": ""}})
     return {"success": True}
 
 
@@ -2366,6 +2481,24 @@ async def generate_video(project_id: str, burn_subtitles: bool = Query(False), a
             {"project_id": project_id},
             {"$set": {"dubbed_video_path": result["path"], "status": "completed", "updated_at": datetime.now(timezone.utc).isoformat()}}
         )
+        
+        # Auto-send to Telegram if user has linked account
+        try:
+            user_doc = await db.users.find_one({"user_id": user.user_id})
+            tg_chat_id = user_doc.get("telegram_chat_id") if user_doc else None
+            if tg_chat_id:
+                local_path = result["path"]
+                project_doc = await db.projects.find_one({"project_id": project_id})
+                title = project_doc.get("title", "Untitled") if project_doc else "Untitled"
+                caption = f"Your dubbed video is ready!\nProject: {title}\n\nPowered by VoxiDub.AI"
+                sent = await send_telegram_video(tg_chat_id, local_path, caption)
+                if sent:
+                    logger.info(f"Telegram: sent video to chat_id={tg_chat_id} for project={project_id}")
+                else:
+                    logger.warning(f"Telegram: failed to send video to chat_id={tg_chat_id}")
+        except Exception as tg_err:
+            logger.error(f"Telegram send error (non-fatal): {tg_err}")
+        
         return await db.projects.find_one({"project_id": project_id}, {"_id": 0})
 
     except Exception as e:
@@ -3317,6 +3450,8 @@ async def startup():
     asyncio.get_event_loop().run_in_executor(None, get_speaker_classifier)
     # Start auto-cleanup background task
     asyncio.create_task(auto_cleanup_old_projects())
+    # Start Telegram bot polling
+    asyncio.create_task(run_telegram_polling())
 
 
 async def auto_cleanup_old_projects():
