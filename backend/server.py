@@ -768,27 +768,66 @@ TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 
 # Telegram link codes stored in MongoDB (survives restart)
 
-async def send_telegram_video(chat_id: int, video_path: str, caption: str = ""):
-    """Send a video file to a Telegram user."""
+async def send_telegram_video(chat_id: int, video_path: str, caption: str = "", project_id: str = ""):
+    """Send a video file to a Telegram user. Compress if >50MB, send link if still too big."""
     if not TELEGRAM_BOT_TOKEN or not chat_id:
         return False
     try:
-        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendDocument"
         file_size = os.path.getsize(video_path)
-        if file_size > 50 * 1024 * 1024:  # 50MB Telegram limit
-            # Try to send as message with download link instead
-            url_msg = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-            async with httpx.AsyncClient(timeout=30) as client:
-                await client.post(url_msg, json={
-                    "chat_id": chat_id,
-                    "text": f"Your dubbed video is ready but too large for Telegram (>{file_size // (1024*1024)}MB). Please download from the website."
-                })
-            return False
-        async with httpx.AsyncClient(timeout=120) as client:
-            with open(video_path, "rb") as f:
+        send_path = video_path
+        compressed = False
+        
+        # If file > 45MB, try to compress first
+        if file_size > 45 * 1024 * 1024:
+            try:
+                compressed_path = video_path.rsplit(".", 1)[0] + "_tg.mp4"
+                cmd = [
+                    "ffmpeg", "-y", "-i", video_path,
+                    "-vf", "scale=-2:480",  # 480p
+                    "-c:v", "libx264", "-preset", "fast", "-crf", "28",
+                    "-c:a", "aac", "-b:a", "96k",
+                    "-movflags", "+faststart",
+                    compressed_path
+                ]
+                proc = subprocess.run(cmd, capture_output=True, timeout=300)
+                if proc.returncode == 0 and os.path.exists(compressed_path):
+                    compressed_size = os.path.getsize(compressed_path)
+                    if compressed_size < 49 * 1024 * 1024:
+                        send_path = compressed_path
+                        compressed = True
+                        logger.info(f"Telegram: compressed {file_size//(1024*1024)}MB → {compressed_size//(1024*1024)}MB")
+                    else:
+                        os.unlink(compressed_path)
+            except Exception as ce:
+                logger.warning(f"Telegram compress failed: {ce}")
+        
+        # Check final file size
+        final_size = os.path.getsize(send_path)
+        
+        if final_size > 49 * 1024 * 1024:
+            # Still too big — send download link
+            site_url = os.environ.get("SITE_URL", "https://voxidub.com")
+            download_url = f"{site_url}/dashboard"
+            msg = f"Your dubbed video is ready! ({file_size//(1024*1024)}MB)\n\nToo large for Telegram. Download from website:\n{download_url}\n\n(Link available for 6 hours)\n\nPowered by VoxiDub.AI"
+            await send_telegram_message(chat_id, msg)
+            if compressed and os.path.exists(send_path) and send_path != video_path:
+                os.unlink(send_path)
+            return True
+        
+        # Send file to Telegram
+        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendDocument"
+        if compressed:
+            caption += "\n(Compressed for Telegram)"
+        async with httpx.AsyncClient(timeout=180) as client:
+            with open(send_path, "rb") as f:
                 resp = await client.post(url, data={"chat_id": chat_id, "caption": caption[:1024]},
-                    files={"document": (os.path.basename(video_path), f, "video/mp4")})
-            return resp.status_code == 200
+                    files={"document": (os.path.basename(send_path), f, "video/mp4")})
+        
+        # Cleanup compressed file
+        if compressed and os.path.exists(send_path) and send_path != video_path:
+            os.unlink(send_path)
+        
+        return resp.status_code == 200
     except Exception as e:
         logger.error(f"Telegram send error: {e}")
         return False
