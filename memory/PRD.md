@@ -12,7 +12,7 @@ Build a video/audio dubbing platform with AI transcription, translation, TTS voi
 ## Completed Features
 - [x] Video/audio upload and processing
 - [x] Whisper transcription + GPT-5.2 translation
-- [x] Edge TTS: Piseth (male) + Sreymom (female) — default auto-process
+- [x] Edge TTS: Piseth (male) + Sreymom (female) -- default auto-process
 - [x] Meta MMS Khmer TTS: Normal speed (1.0)
 - [x] 322 Edge TTS voices across 75 languages
 - [x] Voice preview + search in all tools
@@ -30,15 +30,19 @@ Build a video/audio dubbing platform with AI transcription, translation, TTS voi
 - [x] Nginx reverse proxy configured
 - [x] License key system API (generate/check/activate)
 - [x] Desktop app structure (Electron + build scripts)
+- [x] 2-Phase Auto Process: Detect+Translate first, then user changes voices, then Generate Audio
+- [x] GPT role+gender detection: Detects both character role AND gender from dialogue context
+- [x] Voice review notice with Refresh Actors button after Phase 1
+- [x] Dynamic language name on Generate Audio button
 
 ## Desktop App (.exe)
-- `/app/desktop/` — Electron project
-- `main.js` — Electron main process, starts Python backend
-- `preload.js` — Bridge between Electron and React
-- `license.js` — License key validation
-- `splash.html` — Loading screen
-- `build-win.bat` — Auto build script
-- `BUILD_GUIDE.md` — Complete build instructions
+- `/app/desktop/` -- Electron project
+- `main.js` -- Electron main process, starts Python backend
+- `preload.js` -- Bridge between Electron and React
+- `license.js` -- License key validation
+- `splash.html` -- Loading screen
+- `build-win.bat` -- Auto build script
+- `BUILD_GUIDE.md` -- Complete build instructions
 - License API: POST /api/license/check, /activate, /generate
 
 ## Upcoming Tasks
@@ -50,7 +54,7 @@ Build a video/audio dubbing platform with AI transcription, translation, TTS voi
 ## Future Tasks
 - [ ] Telegram bot integration (P1)
 - [ ] Cloud APIs (Replicate) for heavy processing (P1)
-- [ ] AI voice cloning — needs GPU (P2)
+- [ ] AI voice cloning -- needs GPU (P2)
 - [ ] Mobile-friendly layout (P2)
 - [ ] Export different video quality (P2)
 - [ ] Team workspace (P3)
