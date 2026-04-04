@@ -3551,8 +3551,8 @@ SUBSCRIPTION_PLANS = {
     },
     "basic": {
         "name": "Basic",
-        "price_usd": 19,
-        "price_khr": 76000,
+        "price_usd": 5,
+        "price_khr": 20000,
         "videos_per_month": 10,
         "max_duration_min": 10,
         "priority_queue": False,
@@ -3561,8 +3561,8 @@ SUBSCRIPTION_PLANS = {
     },
     "pro": {
         "name": "Pro",
-        "price_usd": 49,
-        "price_khr": 196000,
+        "price_usd": 15,
+        "price_khr": 60000,
         "videos_per_month": 50,
         "max_duration_min": 30,
         "priority_queue": True,
@@ -3571,8 +3571,8 @@ SUBSCRIPTION_PLANS = {
     },
     "business": {
         "name": "Business",
-        "price_usd": 99,
-        "price_khr": 396000,
+        "price_usd": 39,
+        "price_khr": 156000,
         "videos_per_month": -1,
         "max_duration_min": 60,
         "priority_queue": True,
@@ -3581,13 +3581,51 @@ SUBSCRIPTION_PLANS = {
     },
 }
 
+CREDIT_PACKS = {
+    "pack_5": {
+        "name": "5 Videos",
+        "credits": 5,
+        "price_usd": 3,
+        "price_khr": 12000,
+        "per_video_usd": 0.60,
+        "max_duration_min": 10,
+    },
+    "pack_20": {
+        "name": "20 Videos",
+        "credits": 20,
+        "price_usd": 10,
+        "price_khr": 40000,
+        "per_video_usd": 0.50,
+        "max_duration_min": 15,
+    },
+    "pack_50": {
+        "name": "50 Videos",
+        "credits": 50,
+        "price_usd": 20,
+        "price_khr": 80000,
+        "per_video_usd": 0.40,
+        "max_duration_min": 30,
+    },
+    "pack_100": {
+        "name": "100 Videos",
+        "credits": 100,
+        "price_usd": 35,
+        "price_khr": 140000,
+        "per_video_usd": 0.35,
+        "max_duration_min": 30,
+    },
+}
+
 @api_router.get("/subscription/plans")
 async def get_subscription_plans():
-    """Return all available subscription plans."""
+    """Return all available subscription plans and credit packs."""
     plans = []
     for plan_id, plan in SUBSCRIPTION_PLANS.items():
         plans.append({**plan, "id": plan_id})
-    return {"plans": plans}
+    packs = []
+    for pack_id, pack in CREDIT_PACKS.items():
+        packs.append({**pack, "id": pack_id})
+    return {"plans": plans, "credit_packs": packs}
 
 @api_router.get("/subscription/me")
 async def get_my_subscription(authorization: str = Header(None)):
@@ -3600,8 +3638,10 @@ async def get_my_subscription(authorization: str = Header(None)):
         sub = {
             "user_id": user.user_id,
             "plan": "free",
+            "plan_type": "monthly",
             "videos_used": 0,
             "videos_limit": 1,
+            "credits_remaining": 0,
             "max_duration_min": 5,
             "started_at": now,
             "expires_at": None,
@@ -3612,11 +3652,24 @@ async def get_my_subscription(authorization: str = Header(None)):
         sub.pop("_id", None)
     
     plan_info = SUBSCRIPTION_PLANS.get(sub.get("plan", "free"), SUBSCRIPTION_PLANS["free"])
+    plan_type = sub.get("plan_type", "monthly")
+    credits_remaining = sub.get("credits_remaining", 0)
+    
+    if plan_type == "credits":
+        can_dub = credits_remaining > 0
+        videos_remaining = credits_remaining
+    elif plan_info["videos_per_month"] == -1:
+        can_dub = True
+        videos_remaining = -1
+    else:
+        can_dub = sub.get("videos_used", 0) < sub.get("videos_limit", 1)
+        videos_remaining = max(0, sub.get("videos_limit", 1) - sub.get("videos_used", 0))
+    
     return {
         "subscription": sub,
         "plan_info": plan_info,
-        "can_dub": sub.get("plan") == "business" or sub.get("videos_used", 0) < sub.get("videos_limit", 1),
-        "videos_remaining": -1 if plan_info["videos_per_month"] == -1 else max(0, sub.get("videos_limit", 1) - sub.get("videos_used", 0)),
+        "can_dub": can_dub,
+        "videos_remaining": videos_remaining,
     }
 
 @api_router.post("/subscription/use-credit")
@@ -3627,6 +3680,19 @@ async def use_subscription_credit(authorization: str = Header(None)):
     if not sub:
         raise HTTPException(status_code=403, detail="No subscription found. Please subscribe first.")
     
+    plan_type = sub.get("plan_type", "monthly")
+    
+    # Credit pack system
+    if plan_type == "credits":
+        if sub.get("credits_remaining", 0) <= 0:
+            raise HTTPException(status_code=403, detail="No credits remaining. Please buy more credits.")
+        await db.subscriptions.update_one(
+            {"user_id": user.user_id},
+            {"$inc": {"credits_remaining": -1, "videos_used": 1}}
+        )
+        return {"ok": True, "message": "Credit used"}
+    
+    # Monthly plan system
     plan_info = SUBSCRIPTION_PLANS.get(sub.get("plan", "free"), SUBSCRIPTION_PLANS["free"])
     
     if plan_info["videos_per_month"] == -1:
@@ -3644,6 +3710,65 @@ async def use_subscription_credit(authorization: str = Header(None)):
         {"$inc": {"videos_used": 1}}
     )
     return {"ok": True, "message": "Credit used"}
+
+@api_router.post("/subscription/buy-credits")
+async def buy_credit_pack(request: Request, authorization: str = Header(None)):
+    """Purchase a credit pack (adds credits to user account)."""
+    user = await get_current_user(authorization)
+    body = await request.json()
+    pack_id = body.get("pack", "")
+    payment_ref = body.get("payment_ref", "")
+    
+    if pack_id not in CREDIT_PACKS:
+        raise HTTPException(status_code=400, detail="Invalid credit pack")
+    
+    pack = CREDIT_PACKS[pack_id]
+    now = datetime.now(timezone.utc)
+    
+    # Add credits to existing subscription
+    existing = await db.subscriptions.find_one({"user_id": user.user_id})
+    current_credits = 0
+    if existing:
+        current_credits = existing.get("credits_remaining", 0)
+    
+    sub_data = {
+        "user_id": user.user_id,
+        "plan": pack_id,
+        "plan_type": "credits",
+        "credits_remaining": current_credits + pack["credits"],
+        "max_duration_min": pack["max_duration_min"],
+        "payment_status": "paid",
+        "payment_ref": payment_ref,
+        "updated_at": now.isoformat(),
+    }
+    
+    if not existing:
+        sub_data["videos_used"] = 0
+        sub_data["videos_limit"] = 0
+        sub_data["started_at"] = now.isoformat()
+        sub_data["created_at"] = now.isoformat()
+    
+    await db.subscriptions.update_one(
+        {"user_id": user.user_id},
+        {"$set": sub_data},
+        upsert=True,
+    )
+    
+    # Log payment
+    await db.payments.insert_one({
+        "user_id": user.user_id,
+        "type": "credit_pack",
+        "pack": pack_id,
+        "credits": pack["credits"],
+        "amount_usd": pack["price_usd"],
+        "amount_khr": pack["price_khr"],
+        "payment_ref": payment_ref,
+        "status": "completed",
+        "created_at": now.isoformat(),
+    })
+    
+    logger.info(f"Credit pack purchased: user={user.user_id} pack={pack_id} credits={pack['credits']}")
+    return {"ok": True, "credits_added": pack["credits"], "total_credits": current_credits + pack["credits"]}
 
 @api_router.post("/subscription/activate")
 async def activate_subscription(request: Request, authorization: str = Header(None)):
