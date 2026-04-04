@@ -252,7 +252,7 @@ const PricingPage = () => {
                     </div>
 
                     <div className="flex-1 space-y-2.5 mb-6">
-                      <Feature d={d} ok text={plan.videos_per_month === -1 ? "Unlimited videos" : `${plan.videos_per_month} video${plan.videos_per_month > 1 ? 's' : ''}/month`} />
+                      <Feature d={d} ok text={plan.videos_per_month === -1 ? "Unlimited videos" : `${plan.videos_per_month} videos/month`} />
                       <Feature d={d} ok text={`Max ${plan.max_duration_min} min per video`} />
                       <Feature d={d} ok={!plan.watermark} text={plan.watermark ? "Watermark on video" : "No watermark"} />
                       <Feature d={d} ok={plan.priority_queue} text={plan.priority_queue ? "Priority queue" : "Standard queue"} />
