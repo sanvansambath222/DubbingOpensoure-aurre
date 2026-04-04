@@ -41,6 +41,8 @@ Build a video/audio dubbing platform with AI transcription, translation, TTS voi
 - [x] **Credit pack system** — Pay per video: 5/$3, 20/$10, 50/$20, 100/$35 (Cambodia-friendly pricing)
 - [x] **Pricing page** — Tabbed layout (Credit Packs + Monthly Plans), Best Value/Most Popular badges, FAQ, ABA PayWay payment methods
 - [x] **Subscription APIs** — /subscription/plans, /me, /use-credit, /buy-credits, /activate, /history
+- [x] **Queue system** — asyncio.Lock processes 1 video at a time, waitlist with position, /queue/status endpoint, amber queue UI in processing overlay
+- [x] **Free plan 2 videos** — Changed from 1 to 2 videos per month
 
 ## Telegram Integration
 ### Flow:
