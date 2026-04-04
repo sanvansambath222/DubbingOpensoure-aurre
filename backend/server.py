@@ -845,14 +845,17 @@ async def send_telegram_video(chat_id: int, video_path: str, caption: str = "", 
         logger.error(f"Telegram send error: {e}")
         return False
 
-async def send_telegram_message(chat_id: int, text: str):
-    """Send a text message to a Telegram user."""
+async def send_telegram_message(chat_id: int, text: str, reply_markup=None):
+    """Send a text message to a Telegram user, optionally with inline keyboard."""
     if not TELEGRAM_BOT_TOKEN or not chat_id:
         return False
     try:
         url = f"{_tg_base_url()}/sendMessage"
+        payload = {"chat_id": chat_id, "text": text, "parse_mode": "HTML"}
+        if reply_markup:
+            payload["reply_markup"] = reply_markup
         async with httpx.AsyncClient(timeout=30) as client:
-            resp = await client.post(url, json={"chat_id": chat_id, "text": text})
+            resp = await client.post(url, json=payload)
             return resp.status_code == 200
     except Exception as e:
         logger.error(f"Telegram message error: {e}")
@@ -882,7 +885,21 @@ async def run_telegram_polling():
                     if not chat_id or not text:
                         continue
                     if text == "/start":
-                        await send_telegram_message(chat_id, "Welcome to VoxiDub.AI Bot!\n\nTo link your account:\n1. Go to voxidub.com → Dashboard\n2. Click 'Connect Telegram'\n3. Copy the code\n4. Paste it here\n\nAfter linking, your dubbed videos will be sent here automatically!")
+                        welcome_text = (
+                            "<b>Welcome to VoxiDub.AI!</b>\n\n"
+                            "AI Video Dubbing — Any Language to Any Language\n\n"
+                            "<b>How to connect:</b>\n"
+                            "1. Sign up at voxidub.com\n"
+                            "2. Click <b>Connect Telegram</b> on your dashboard\n"
+                            "3. Copy the code and send it here\n\n"
+                            "After linking, your dubbed videos will be sent here automatically!"
+                        )
+                        keyboard = {
+                            "inline_keyboard": [
+                                [{"text": "Open VoxiDub.AI — Get Code", "url": "https://voxidub.com"}]
+                            ]
+                        }
+                        await send_telegram_message(chat_id, welcome_text, reply_markup=keyboard)
                     elif text.startswith("VXD-"):
                         # User sent a link code — check MongoDB
                         code = text.strip()
@@ -900,9 +917,9 @@ async def run_telegram_polling():
                                 await send_telegram_message(chat_id, "Account linked successfully! Your dubbed videos will be sent here automatically.")
                                 logger.info(f"Telegram linked: user={user_id} chat_id={chat_id}")
                         else:
-                            await send_telegram_message(chat_id, "Invalid or expired code. Please get a new code from voxidub.com → Dashboard → Connect Telegram.")
+                            await send_telegram_message(chat_id, "Invalid or expired code.\n\nGet a new code from your dashboard:", reply_markup={"inline_keyboard": [[{"text": "Open VoxiDub.AI", "url": "https://voxidub.com"}]]})
                     else:
-                        await send_telegram_message(chat_id, "Send me your link code from voxidub.com to connect your account.\n\nFormat: VXD-XXXXXX")
+                        await send_telegram_message(chat_id, "Send me your link code to connect.\n\nFormat: <b>VXD-XXXXXX</b>\n\nDon't have a code yet?", reply_markup={"inline_keyboard": [[{"text": "Open VoxiDub.AI — Get Code", "url": "https://voxidub.com"}]]})
         except Exception as e:
             logger.error(f"Telegram polling error: {e}")
         await asyncio.sleep(2)
