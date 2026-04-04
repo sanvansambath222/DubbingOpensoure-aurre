@@ -348,9 +348,10 @@ def detect_speakers_audio(audio_path: str, segments: list) -> list:
                 if corr > best_corr:
                     best_corr = corr
                     best_lag = lag
-            if best_corr > 0.3:  # voiced speech threshold
+            if best_corr > 0.2:  # voiced speech threshold (lowered for better detection)
                 f0 = sr / best_lag
                 pitches.append(f0)
+                logger.debug(f"Segment {i}: F0={f0:.0f}Hz corr={best_corr:.2f}")
             else:
                 pitches.append(None)
         except:
@@ -431,14 +432,34 @@ def detect_speakers_audio(audio_path: str, segments: list) -> list:
 
     speaker_gender = {}
     for spk, plist in speaker_pitches.items():
-        avg_pitch = sum(plist) / len(plist)
-        # Male: ~85-170 Hz, Female: ~165-255 Hz
-        speaker_gender[spk] = "male" if avg_pitch < 160 else "female"
-        logger.info(f"{spk}: avg pitch={avg_pitch:.0f}Hz → {speaker_gender[spk]}")
+        # Remove outliers (keep middle 60%)
+        plist.sort()
+        trim = max(1, len(plist) // 5)
+        trimmed = plist[trim:-trim] if len(plist) > 4 else plist
+        avg_pitch = sum(trimmed) / len(trimmed) if trimmed else 180
+        median_pitch = trimmed[len(trimmed) // 2] if trimmed else 180
+        # Use median for more robust detection
+        # Male: ~85-175 Hz, Female: ~175-300 Hz
+        speaker_gender[spk] = "male" if median_pitch < 175 else "female"
+        logger.info(f"{spk}: avg={avg_pitch:.0f}Hz median={median_pitch:.0f}Hz → {speaker_gender[spk]}")
 
     # Apply gender and voice to all segments
+    # Also use GPT role names as backup gender hint
+    MALE_ROLE_KEYWORDS = {"husband", "father", "brother", "uncle", "grandfather", "son", "boy", "man", "king", "prince", "sir", "mr", "male", "dad", "papa", "grandpa", "nephew", "groom"}
+    FEMALE_ROLE_KEYWORDS = {"wife", "mother", "sister", "aunt", "grandmother", "daughter", "girl", "woman", "queen", "princess", "mrs", "ms", "miss", "female", "mom", "mama", "grandma", "niece", "bride"}
+    
     for seg in segments:
         gender = speaker_gender.get(seg["speaker"], "female")
+        
+        # Override gender if GPT role name clearly indicates male/female
+        role = seg.get("role", "").lower().strip()
+        if role:
+            role_words = set(role.replace("-", " ").replace("_", " ").split())
+            if role_words & MALE_ROLE_KEYWORDS:
+                gender = "male"
+            elif role_words & FEMALE_ROLE_KEYWORDS:
+                gender = "female"
+        
         seg["gender"] = gender
         seg["voice"] = "dara" if gender == "male" else "sophea"
 
