@@ -19,7 +19,7 @@ Build a video/audio dubbing platform with AI transcription, translation, TTS voi
 - [x] GPT role-name gender override (Husband→male, Wife→female, etc.)
 - [x] Demucs AI vocal removal (chunked)
 - [x] Background async processing
-- [x] 9 Standalone Tools (Voice Replace, Subtitles, Translate, Trim, AI Clips, TTS, Resize, Convert, Add Logo)
+- [x] 10 Standalone Tools (Voice Replace, Subtitles, Translate, Trim, AI Clips, TTS, Resize, Convert, Add Logo, **Remove Logo**)
 - [x] 322 Edge TTS voices across 75 languages with search
 - [x] Voice preview (play before select)
 - [x] VoxiDub.AI logo (round icon + text) in navbar
@@ -29,48 +29,30 @@ Build a video/audio dubbing platform with AI transcription, translation, TTS voi
 - [x] Processing overlay with Done/Error close buttons
 - [x] "You can close this tab" message during processing
 - [x] Domain: voxidub.com + SSL (Let's Encrypt)
-- [x] **Telegram Bot Integration** — auto-send dubbed videos to user's Telegram
-- [x] **Connect Telegram** button on dashboard with code-based linking
-- [x] **Telegram modal centered** — Fixed via React Portal (backdrop-blur stacking context fix)
-- [x] **Telegram warning banner** — Dashboard shows "Connect Telegram to receive your videos" when not linked
-- [x] **Telegram bot welcome upgrade** — /start sends HTML message with clickable "Open VoxiDub.AI" button
-- [x] **Telegram video caption upgrade** — Shows source→target language (e.g. "Chinese → Khmer")
-- [x] **Tools page UI upgrade** — Bento grid layout, colored icon backgrounds, accent colors, AI badges, professional split header/form design
-- [x] **Tools page full redesign** — Complete rewrite with gradient icons (dark), rounded-xl inputs, professional drop zones, lightning bolt buttons, uppercase labels, hover animations
-- [x] **Subscription system** — 4 plans (Free $0, Basic $5, Pro $15, Business $39), USD/KHR toggle, usage tracking, video credits
-- [x] **Credit pack system** — Pay per video: 5/$3, 20/$10, 50/$20, 100/$35 (Cambodia-friendly pricing)
-- [x] **Pricing page** — Tabbed layout (Credit Packs + Monthly Plans), Best Value/Most Popular badges, FAQ, ABA PayWay payment methods
-- [x] **Subscription APIs** — /subscription/plans, /me, /use-credit, /buy-credits, /activate, /history
-- [x] **Queue system** — asyncio.Lock processes 1 video at a time, waitlist with position, /queue/status endpoint, amber queue UI in processing overlay
-- [x] **Free plan 2 videos** — Changed from 1 to 2 videos per month
-
-## Telegram Integration
-### Flow:
-1. User clicks "Connect Telegram" on dashboard
-2. Gets code like VXD-WT8M66
-3. Opens @VoxiDubBot, sends code
-4. Account linked
-5. After dubbing → bot auto-sends video to user's private Telegram
-6. Server deletes files → 0 disk space
-7. User keeps video on Telegram forever (free)
-
-### Endpoints:
-- POST /api/telegram/generate-code
-- GET /api/telegram/status
-- POST /api/telegram/unlink
+- [x] Telegram Bot Integration — auto-send dubbed videos to user's Telegram
+- [x] Connect Telegram button on dashboard with code-based linking
+- [x] Telegram modal centered — Fixed via React Portal
+- [x] Telegram warning banner — Dashboard shows "Connect Telegram to receive your videos"
+- [x] Telegram bot welcome upgrade — /start sends HTML message with clickable button
+- [x] Telegram video caption upgrade — Shows source→target language
+- [x] Tools page UI upgrade — Bento grid layout, colored icon backgrounds, accent colors, AI badges
+- [x] Subscription system — 4 plans (Free $0, Basic $5, Pro $15, Business $39)
+- [x] Credit pack system — Pay per video: 5/$3, 20/$10, 50/$20, 100/$35
+- [x] Pricing page — Tabbed layout, FAQ, ABA PayWay payment methods
+- [x] Subscription APIs — /subscription/plans, /me, /use-credit, /buy-credits, /activate, /history
+- [x] Queue system — asyncio.Lock processes 1 video at a time, waitlist with position
+- [x] Free plan 2 videos — Changed from 1 to 2 videos per month
+- [x] **Queue bug fix** — Fixed stale project data, missing error handling, queue_status not updating to "done"
+- [x] **Frontend queue fix** — Editor.jsx now handles "queued" status same as "processing" for polling
+- [x] **Remove Logo tool** — FFmpeg delogo + blur filters, draw-to-select UI, 2 removal methods
 
 ## Upcoming Tasks
-- [ ] Stripe payment (Free/Basic/Pro/Business) (P0)
-- [ ] Usage limits per plan (P0)
-- [ ] Queue system for multiple users (P0)
-- [ ] Cloudflare protection (P1)
-
-## Future Tasks
-- [ ] AI voice cloning - needs GPU (P1)
-- [ ] Mobile-friendly layout (P2)
-- [ ] Export different video quality (P2)
-- [ ] Team workspace (P3)
-- [ ] Refactor server.py into routes/services (P1)
+- [ ] ABA PayWay Payment Integration (blocked: waiting for sandbox API keys from user)
+- [ ] Refactor server.py (~4000 lines → split into routes/services) — P1
+- [ ] Mobile-friendly layout tweaks — P2
+- [ ] Export different video qualities — P2
+- [ ] Nginx/Cloudflare setup — P2
+- [ ] OpenVoice v2 voice cloning (needs GPU/more RAM) — P3
 
 ## Google Cloud Deployment
 - Server: e2-highcpu-4 (4 vCPU, 4GB RAM), Debian 13
