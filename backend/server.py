@@ -1858,6 +1858,59 @@ async def import_voices(
     )
     return {"success": len(results), "errors": errors, "details": results}
 
+# Bulk upload MP3s - auto-match by filename number (line1.mp3 → segment 1)
+@api_router.post("/projects/{project_id}/bulk-upload-voices")
+async def bulk_upload_voices(
+    project_id: str,
+    audio_files: list[UploadFile] = File(...),
+    authorization: str = Header(None)
+):
+    user = await get_current_user(authorization)
+    project = strip_oid(await db.projects.find_one({"project_id": project_id, "user_id": user.user_id}))
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    segments = project.get("segments", [])
+    import re
+    results = []
+    errors = []
+    for af in audio_files:
+        # Extract number from filename: line1.mp3 → 1, 3.wav → 3, segment_05.mp3 → 5
+        nums = re.findall(r'(\d+)', af.filename or "")
+        if not nums:
+            errors.append(f"'{af.filename}': no number found in filename")
+            continue
+        line_num = int(nums[0])  # Use first number found
+        idx = line_num - 1  # Convert to 0-based index
+        if idx < 0 or idx >= len(segments):
+            errors.append(f"'{af.filename}': line {line_num} out of range (max {len(segments)})")
+            continue
+        audio_data = await af.read()
+        # Validate duration
+        seg = segments[idx]
+        seg_duration = seg.get("end", 0) - seg.get("start", 0)
+        try:
+            from pydub import AudioSegment as PydubSeg
+            import io
+            ext = af.filename.split(".")[-1].lower() if "." in af.filename else "mp3"
+            audio = PydubSeg.from_file(io.BytesIO(audio_data), format=ext if ext in ("mp3","wav","ogg","flac","m4a","aac") else "mp3")
+            audio_dur = len(audio) / 1000.0
+            if audio_dur > seg_duration + 1.5:
+                errors.append(f"'{af.filename}': MP3 is {audio_dur:.1f}s but line {line_num} is {seg_duration:.1f}s (too long)")
+                continue
+        except Exception:
+            pass
+        ext = af.filename.split(".")[-1] if "." in af.filename else "mp3"
+        path = f"{APP_NAME}/custom_audio/{user.user_id}/{project_id}/segment_{idx}_{uuid.uuid4().hex}.{ext}"
+        result = put_object(path, audio_data, "audio/mpeg")
+        segments[idx]["custom_audio"] = result["path"]
+        results.append(f"'{af.filename}' → line {line_num} OK")
+    await db.projects.update_one(
+        {"project_id": project_id},
+        {"$set": {"segments": segments, "updated_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    return {"success": len(results), "errors": errors, "details": results}
+
+
 
 # Transcribe with segments + speaker detection + smart actor labels
 @api_router.post("/projects/{project_id}/transcribe-segments")

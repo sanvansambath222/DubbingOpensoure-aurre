@@ -823,6 +823,29 @@ const Editor = () => {
     }
   };
 
+  const handleBulkUploadMp3 = async (files) => {
+    const formData = new FormData();
+    files.forEach(f => formData.append("audio_files", f));
+    try {
+      const r = await axios.post(
+        `${API}/projects/${projectId}/bulk-upload-voices`,
+        formData,
+        { headers: { Authorization: `Bearer ${token}`, "Content-Type": "multipart/form-data" } }
+      );
+      const proj = await axios.get(`${API}/projects/${projectId}`, { headers: { Authorization: `Bearer ${token}` } });
+      setSegments(proj.data.segments || []);
+      const res = r.data;
+      if (res.errors?.length) {
+        toast.error(`${res.success} uploaded, ${res.errors.length} errors`);
+      } else {
+        toast.success(`${res.success} voices uploaded!`);
+      }
+    } catch (e) {
+      toast.error(e.response?.data?.detail || "Upload failed");
+    }
+  };
+
+
 
 
   if (loading) return <div className={`min-h-screen flex items-center justify-center ${d?'bg-zinc-950':'bg-zinc-50'}`}><Spinner className="w-12 h-12 text-zinc-400 animate-spin" /></div>;
@@ -1410,6 +1433,7 @@ const Editor = () => {
               onDownloadScript={handleDownloadScript}
               onDownloadCsvTemplate={handleDownloadCsvTemplate}
               onImportVoices={handleImportVoices}
+              onBulkUploadMp3={handleBulkUploadMp3}
             />
           )}
 

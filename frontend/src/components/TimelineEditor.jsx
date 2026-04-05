@@ -33,7 +33,7 @@ const TimelineEditor = ({
   onOffsetChange, onSeekVideo, videoCurrentTime, onSaveOffsets,
   isPlaying, onPlayPause, onStop,
   onSplitSegment, onChangeSpeaker, onUploadAudio,
-  onDownloadScript, onDownloadCsvTemplate, onImportVoices
+  onDownloadScript, onDownloadCsvTemplate, onImportVoices, onBulkUploadMp3
 }) => {
   const d = isDark;
   const containerRef = useRef(null);
@@ -47,6 +47,7 @@ const TimelineEditor = ({
   const uploadInputRef = useRef(null);
   const csvInputRef = useRef(null);
   const mp3InputRef = useRef(null);
+  const bulkMp3Ref = useRef(null);
   const [importCsv, setImportCsv] = useState(null);
   const [importMp3s, setImportMp3s] = useState(null);
   const [importing, setImporting] = useState(false);
@@ -270,13 +271,29 @@ const TimelineEditor = ({
             className={`px-2.5 py-1.5 text-[10px] font-bold rounded-md flex items-center gap-1.5 transition-colors border ${d ? 'text-zinc-300 border-zinc-700 hover:bg-zinc-800 hover:border-zinc-500' : 'text-zinc-600 border-zinc-300 hover:bg-zinc-100 hover:border-zinc-400'}`}>
             <DownloadSimple className="w-3.5 h-3.5" weight="bold" /> CSV Template
           </button>
-          <button onClick={() => csvInputRef.current?.click()} data-testid="timeline-import-voices"
+          {/* Simple: Upload MP3s named line1.mp3, line2.mp3 - auto match */}
+          <button onClick={() => bulkMp3Ref.current?.click()} data-testid="timeline-bulk-upload"
             className={`px-2.5 py-1.5 text-[10px] font-bold rounded-md flex items-center gap-1.5 transition-colors border ${
               importing
                 ? (d ? 'bg-cyan-900/30 border-cyan-600 text-cyan-300' : 'bg-cyan-50 border-cyan-400 text-cyan-600')
-                : (d ? 'text-zinc-300 border-zinc-700 hover:bg-zinc-800 hover:border-zinc-500' : 'text-zinc-600 border-zinc-300 hover:bg-zinc-100 hover:border-zinc-400')
+                : (d ? 'text-cyan-300 border-cyan-700 hover:bg-cyan-900/30 hover:border-cyan-500' : 'text-cyan-600 border-cyan-300 hover:bg-cyan-50 hover:border-cyan-400')
             }`}>
-            <FileText className="w-3.5 h-3.5" weight="bold" /> {importing ? 'Importing...' : 'Import CSV+MP3'}
+            <UploadSimple className="w-3.5 h-3.5" weight="bold" /> {importing ? 'Uploading...' : 'Upload MP3s'}
+          </button>
+          <input ref={bulkMp3Ref} type="file" accept="audio/*" multiple className="hidden"
+            onChange={async (e) => {
+              const files = Array.from(e.target.files || []);
+              if (files.length) {
+                setImporting(true);
+                await onBulkUploadMp3?.(files);
+                setImporting(false);
+              }
+              e.target.value = '';
+            }} />
+          {/* Advanced: CSV + MP3 together */}
+          <button onClick={() => csvInputRef.current?.click()} data-testid="timeline-import-voices"
+            className={`px-2.5 py-1.5 text-[10px] font-bold rounded-md flex items-center gap-1.5 transition-colors border ${d ? 'text-zinc-300 border-zinc-700 hover:bg-zinc-800 hover:border-zinc-500' : 'text-zinc-600 border-zinc-300 hover:bg-zinc-100 hover:border-zinc-400'}`}>
+            <FileText className="w-3.5 h-3.5" weight="bold" /> CSV+MP3
           </button>
           <input ref={csvInputRef} type="file" accept=".csv" className="hidden"
             onChange={(e) => {
