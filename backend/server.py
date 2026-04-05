@@ -1120,7 +1120,7 @@ def get_mms_model():
     return _mms_model, _mms_tokenizer
 
 def generate_mms_tts(text: str, output_path: str, speed: float = 1.0, female: bool = False):
-    """Generate Khmer speech using Meta MMS TTS. Speed: 0.5=slow, 1.0=normal, 2.0=fast. female=True raises pitch. Returns True on success."""
+    """Generate Khmer speech using Meta MMS TTS. Outputs pure model audio — no speed/pitch changes."""
     import torch
     import numpy as np
     import scipy.io.wavfile as wavfile
@@ -1134,32 +1134,8 @@ def generate_mms_tts(text: str, output_path: str, speed: float = 1.0, female: bo
     audio = output.squeeze().cpu().numpy()
     sr = model.config.sampling_rate
     
-    # Build ffmpeg filter chain
-    filters = []
-    
-    # Female pitch shift: raise pitch 30%
-    if female:
-        filters.append(f"asetrate={sr}*1.3")
-        filters.append("atempo=0.769")  # 1/1.3 to keep same duration
-    
-    # Speed adjustment
-    if speed != 1.0 and speed > 0:
-        sp = max(0.5, min(3.0, speed))
-        filters.append(f"atempo={sp}")
-    
-    # Always resample to original sr at the end
-    filters.append(f"aresample={sr}")
-    
-    if filters:
-        temp_path = output_path + ".tmp.wav"
-        wavfile.write(temp_path, rate=sr, data=audio)
-        filter_str = ",".join(filters)
-        cmd = ["ffmpeg", "-y", "-i", temp_path, "-af", filter_str, output_path]
-        subprocess.run(cmd, capture_output=True, text=True)
-        try: os.unlink(temp_path)
-        except: pass
-    else:
-        wavfile.write(output_path, rate=sr, data=audio)
+    # Pure output — no speed, no pitch, no FFmpeg processing
+    wavfile.write(output_path, rate=sr, data=audio)
     return True
 
 # KLEA Khmer TTS model (lazy loaded, word-by-word)
