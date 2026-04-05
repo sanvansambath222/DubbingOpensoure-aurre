@@ -569,10 +569,8 @@ def extract_background_audio(video_path: str, project_id: str = None) -> bytes:
         else:
             wav = torch.from_numpy(wav_np.T).float()
         
-        # Load model
-        model = get_model('htdemucs')
-        model.eval()
-        model.cpu()
+        # Use cached model
+        model = get_demucs_model()
         
         # Resample if needed
         if sr != model.samplerate:
@@ -669,8 +667,8 @@ def extract_background_audio(video_path: str, project_id: str = None) -> bytes:
             try: os.unlink(p)
             except: pass
         
-        # Free memory
-        del model, wav, final_no_vocals, all_no_vocals
+        # Free memory (keep model cached)
+        del wav, final_no_vocals, all_no_vocals
         torch.cuda.empty_cache() if torch.cuda.is_available() else None
         import gc; gc.collect()
         
@@ -718,7 +716,7 @@ def mix_with_background(dubbed_audio: 'AudioSegment', bg_audio_bytes: bytes, bg_
 
 
 def fit_audio_to_duration(audio, target_duration_ms: int):
-    """Speed up audio to fit within target duration using FFmpeg atempo (fast)."""
+    """Speed up audio to fit within target duration. Uses in-memory processing for speed."""
     if target_duration_ms <= 0 or len(audio) <= target_duration_ms:
         return audio
     speed_factor = len(audio) / target_duration_ms
@@ -726,41 +724,32 @@ def fit_audio_to_duration(audio, target_duration_ms: int):
         speed_factor = 2.5
     if speed_factor < 1.05:
         return audio
-    # Use FFmpeg atempo for fast processing instead of pydub.speedup()
+    # Fast in-memory: use pydub frame rate manipulation (no subprocess)
     try:
-        import io
-        from pydub import AudioSegment
-        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp_in:
-            audio.export(tmp_in.name, format="wav")
-            in_path = tmp_in.name
-        out_path = in_path.replace(".wav", "_fast.wav")
-        # Build atempo filter chain (atempo supports 0.5-2.0 range, chain for higher)
-        filters = []
-        remaining = speed_factor
-        while remaining > 2.0:
-            filters.append("atempo=2.0")
-            remaining /= 2.0
-        filters.append(f"atempo={remaining:.4f}")
-        filter_str = ",".join(filters)
-        cmd = ["ffmpeg", "-y", "-i", in_path, "-af", filter_str, "-ac", "1", "-ar", "24000", out_path]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-        if result.returncode == 0 and os.path.exists(out_path):
-            fitted = AudioSegment.from_file(out_path)
-            os.unlink(in_path)
-            os.unlink(out_path)
-            return fitted
-        os.unlink(in_path)
-        if os.path.exists(out_path):
-            os.unlink(out_path)
-        return audio[:target_duration_ms]
-    except Exception as e:
-        logger.warning(f"FFmpeg atempo failed, truncating: {e}")
+        # Change frame rate to speed up, then convert back
+        new_frame_rate = int(audio.frame_rate * speed_factor)
+        sped = audio._spawn(audio.raw_data, overrides={"frame_rate": new_frame_rate})
+        sped = sped.set_frame_rate(24000)
+        return sped
+    except Exception:
         return audio[:target_duration_ms]
 
 
 # --- Constants ---
-TTS_BATCH_SIZE = 10
+TTS_BATCH_SIZE = 15
 TRANSLATE_CHUNK_SIZE = 50
+
+# Cache Demucs model globally (loading takes ~5s, reuse saves time)
+_demucs_model = None
+def get_demucs_model():
+    global _demucs_model
+    if _demucs_model is None:
+        from demucs.pretrained import get_model
+        _demucs_model = get_model('htdemucs')
+        _demucs_model.eval()
+        _demucs_model.cpu()
+        logger.info("Demucs model loaded and cached")
+    return _demucs_model
 POLL_INTERVAL_S = 1.5
 REQUEST_TIMEOUT_MS = 300000
 AUTO_PROCESS_TIMEOUT_MS = 600000
