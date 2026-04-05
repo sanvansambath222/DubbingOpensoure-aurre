@@ -469,6 +469,26 @@ const TimelineEditor = ({
                       <div className={`flex-shrink-0 flex items-center justify-center w-4 h-full opacity-30 hover:opacity-70`}>
                         <DotsSixVertical className="w-3 h-3" weight="bold" />
                       </div>
+                      {/* Cut line indicator - shows where split will happen */}
+                      {isSelected && (() => {
+                        const ct = videoCurrentTime || 0;
+                        const segStart = seg.start || 0;
+                        const segEnd = seg.end || 0;
+                        if (ct > segStart && ct < segEnd) {
+                          const pct = ((ct - segStart) / (segEnd - segStart)) * 100;
+                          return (
+                            <div className="absolute top-0 bottom-0 pointer-events-none z-20 flex flex-col items-center"
+                              style={{ left: `${pct}%` }}>
+                              <div className="w-[2px] h-full bg-yellow-300 shadow-sm shadow-yellow-300/50" />
+                              <div className="absolute -top-5 -translate-x-1/2 px-1.5 py-0.5 rounded bg-yellow-400 text-[8px] font-bold text-black whitespace-nowrap shadow">
+                                {formatShort(ct)}
+                              </div>
+                              <Scissors className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-4 h-4 text-yellow-300 drop-shadow" weight="bold" />
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
                     </div>
 
                     {/* Floating Toolbar - shown when block is selected */}
