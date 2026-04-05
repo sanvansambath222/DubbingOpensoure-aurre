@@ -9,12 +9,13 @@ import {
   GenderMale, GenderFemale, ArrowLeft, Subtitles, FilmStrip,
   Record, Stop, Eye, ShareNetwork, Link, Copy, Globe,
   MusicNote, FileText, MagnifyingGlass, Scissors,
-  ArrowsMerge, PencilSimple, Package, FloppyDisk, ArrowsClockwise
+  ArrowsMerge, PencilSimple, Package, FloppyDisk, ArrowsClockwise, ArrowsHorizontal
 } from "@phosphor-icons/react";
 import { useAuth, ThemeToggle } from "./AuthContext";
 import { API, GENERATE_TIMEOUT_MS, AUTO_PROCESS_TIMEOUT_MS, PROGRESS_POLL_MS, OUTPUT_LANGUAGES } from "./constants";
 import { StepProgress, ProcessingOverlay } from "./EditorWidgets";
 import VoicePickerModal from "./VoicePickerModal";
+import TimelineEditor from "./TimelineEditor";
 
 const useProjectId = () => {
   const location = useLocation();
@@ -61,6 +62,9 @@ const Editor = () => {
   const [ytLoading, setYtLoading] = useState(null);
   const [voicePickerOpen, setVoicePickerOpen] = useState(false);
   const [voicePickerActorId, setVoicePickerActorId] = useState(null);
+  const [showTimeline, setShowTimeline] = useState(false);
+  const [videoCurrentTime, setVideoCurrentTime] = useState(0);
+  const [videoDuration, setVideoDuration] = useState(0);
   const mediaRecorderRef = useRef(null);
   const recordedChunksRef = useRef([]);
   const recordTimerRef = useRef(null);
@@ -645,6 +649,49 @@ const Editor = () => {
     return idx >= 0 ? idx % speakerColors.length : 0;
   };
 
+  // Track video playback time for timeline playhead
+  useEffect(() => {
+    const vid = originalVideoRef.current;
+    if (!vid) return;
+    const onTimeUpdate = () => setVideoCurrentTime(vid.currentTime);
+    const onDurationChange = () => setVideoDuration(vid.duration || 0);
+    vid.addEventListener('timeupdate', onTimeUpdate);
+    vid.addEventListener('loadedmetadata', onDurationChange);
+    vid.addEventListener('durationchange', onDurationChange);
+    return () => {
+      vid.removeEventListener('timeupdate', onTimeUpdate);
+      vid.removeEventListener('loadedmetadata', onDurationChange);
+      vid.removeEventListener('durationchange', onDurationChange);
+    };
+  }, [originalVideoUrl]);
+
+  const handleTimelineOffsetChange = (segIdx, offset) => {
+    const updated = [...segments];
+    updated[segIdx] = { ...updated[segIdx], timeline_offset: offset };
+    setSegments(updated);
+  };
+
+  const handleTimelineSeek = (time) => {
+    if (originalVideoRef.current) {
+      originalVideoRef.current.currentTime = time;
+      originalVideoRef.current.play().catch(() => {});
+    }
+  };
+
+  const handleSaveTimeline = async (offsets) => {
+    const updated = segments.map((seg, idx) => ({
+      ...seg,
+      timeline_offset: offsets[idx] || 0
+    }));
+    setSegments(updated);
+    setSaveStatus("saving");
+    try {
+      await axios.patch(`${API}/projects/${projectId}`, { segments: updated }, { headers: { Authorization: `Bearer ${token}` } });
+      setSaveStatus("saved");
+      toast.success("Timeline saved!");
+    } catch { setSaveStatus("error"); toast.error("Failed to save timeline"); }
+  };
+
   if (loading) return <div className={`min-h-screen flex items-center justify-center ${d?'bg-zinc-950':'bg-zinc-50'}`}><Spinner className="w-12 h-12 text-zinc-400 animate-spin" /></div>;
 
   const step = getCurrentStep();
@@ -1163,9 +1210,21 @@ const Editor = () => {
             </div>
           )}
 
-          {/* Search & Tools Bar */}
+          {/* Timeline Toggle & Search Bar */}
           {segments.length > 0 && (
             <div className={`border-b px-4 py-2 flex items-center gap-3 ${d?'bg-zinc-900/50 border-zinc-800':'bg-white/50 border-black/10'}`}>
+              {/* Timeline Toggle */}
+              {actors.length > 0 && segments.some(s => s.translated || s.custom_audio) && (
+                <button onClick={() => setShowTimeline(!showTimeline)} data-testid="timeline-toggle-btn"
+                  className={`px-3 py-1.5 text-[10px] font-bold rounded-md flex items-center gap-1.5 border transition-all ${
+                    showTimeline
+                      ? (d ? 'bg-cyan-900/40 border-cyan-600 text-cyan-300 ring-1 ring-cyan-500/30' : 'bg-cyan-50 border-cyan-400 text-cyan-700 ring-1 ring-cyan-400/30')
+                      : (d ? 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-white hover:border-zinc-500' : 'bg-zinc-100 border-zinc-200 text-zinc-500 hover:text-zinc-700 hover:border-zinc-400')
+                  }`}>
+                  <ArrowsHorizontal className="w-3.5 h-3.5" weight="bold" />
+                  {showTimeline ? 'Hide Timeline' : 'Timeline Editor'}
+                </button>
+              )}
               <div className="relative flex-1 max-w-xs">
                 <MagnifyingGlass className="w-3.5 h-3.5 text-zinc-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
                 <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
@@ -1196,6 +1255,20 @@ const Editor = () => {
                   : searchQuery ? `${filteredSegments.length} of ${segments.length}` : `${segments.length} segments`}
               </span>
             </div>
+          )}
+
+          {/* Timeline Editor */}
+          {showTimeline && actors.length > 0 && segments.length > 0 && (
+            <TimelineEditor
+              segments={segments}
+              actors={actors}
+              isDark={d}
+              totalDuration={videoDuration}
+              onOffsetChange={handleTimelineOffsetChange}
+              onSeekVideo={handleTimelineSeek}
+              videoCurrentTime={videoCurrentTime}
+              onSaveOffsets={handleSaveTimeline}
+            />
           )}
 
           {/* Subtitle Table */}
