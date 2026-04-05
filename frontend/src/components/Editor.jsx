@@ -422,13 +422,27 @@ const Editor = () => {
     } catch (e) { toast.error(e.response?.data?.detail || "Merge failed"); }
   };
 
-  const splitSegment = async (idx) => {
+  const splitSegment = async (idx, part1Speaker, part2Speaker) => {
     try {
       const r = await axios.post(`${API}/projects/${projectId}/split-segment`,
         { segment_id: idx },
         { headers: { Authorization: `Bearer ${token}` } });
-      setSegments(r.data.segments || []);
-      toast.success("Segment split!");
+      let newSegs = r.data.segments || [];
+      // Assign speakers if provided (from timeline split picker)
+      if (part1Speaker || part2Speaker) {
+        const actor1 = actors.find(a => a.id === part1Speaker);
+        const actor2 = actors.find(a => a.id === part2Speaker);
+        if (actor1) {
+          newSegs[idx] = { ...newSegs[idx], speaker: part1Speaker, gender: actor1.gender };
+        }
+        if (actor2 && idx + 1 < newSegs.length) {
+          newSegs[idx + 1] = { ...newSegs[idx + 1], speaker: part2Speaker, gender: actor2.gender };
+        }
+        // Save speaker assignments
+        await axios.patch(`${API}/projects/${projectId}`, { segments: newSegs }, { headers: { Authorization: `Bearer ${token}` } });
+      }
+      setSegments(newSegs);
+      toast.success("Segment split & speakers assigned!");
     } catch (e) { toast.error(e.response?.data?.detail || "Split failed"); }
   };
 

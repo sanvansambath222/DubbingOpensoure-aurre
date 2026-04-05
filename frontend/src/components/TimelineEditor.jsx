@@ -42,6 +42,7 @@ const TimelineEditor = ({
   const [hoveredSeg, setHoveredSeg] = useState(null);
   const [selectedSeg, setSelectedSeg] = useState(null);
   const [draggingPlayhead, setDraggingPlayhead] = useState(null);
+  const [splitPicker, setSplitPicker] = useState(null); // { segIdx, part1Text, part2Text }
   const uploadInputRef = useRef(null);
   const hasChanges = Object.values(offsets).some(v => v !== 0);
 
@@ -435,7 +436,26 @@ const TimelineEditor = ({
                         onClick={(e) => e.stopPropagation()}>
                         {/* Split button */}
                         <button
-                          onClick={(e) => { e.stopPropagation(); onSplitSegment?.(seg._idx); setSelectedSeg(null); }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const s = segments[seg._idx];
+                            const orig = s?.original || '';
+                            const trans = s?.translated || '';
+                            const origWords = orig.includes(' ') ? orig.split(' ') : [...orig];
+                            const transWords = trans.includes(' ') ? trans.split(' ') : [...trans];
+                            const midO = Math.ceil(origWords.length / 2);
+                            const midT = Math.ceil(transWords.length / 2);
+                            const joinerO = orig.includes(' ') ? ' ' : '';
+                            const joinerT = trans.includes(' ') ? ' ' : '';
+                            setSplitPicker({
+                              segIdx: seg._idx,
+                              part1Text: joinerT.length ? transWords.slice(0, midT).join(joinerT) : origWords.slice(0, midO).join(joinerO),
+                              part2Text: joinerT.length ? transWords.slice(midT).join(joinerT) : origWords.slice(midO).join(joinerO),
+                              part1Speaker: s?.speaker,
+                              part2Speaker: s?.speaker,
+                            });
+                            setSelectedSeg(null);
+                          }}
                           data-testid={`timeline-split-${seg._idx}`}
                           className={`flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold transition-all ${d ? 'hover:bg-violet-500/20 text-violet-400' : 'hover:bg-violet-100 text-violet-600'}`}>
                           <Scissors className="w-3.5 h-3.5" weight="bold" /> Split
@@ -583,7 +603,7 @@ const TimelineEditor = ({
       </div>
 
       {/* Bottom hint */}
-      {hoveredSeg !== null && (
+      {hoveredSeg !== null && !splitPicker && (
         <div className={`px-5 py-1.5 text-[10px] flex items-center gap-3 ${d ? 'bg-zinc-900/50 text-zinc-400' : 'bg-zinc-50 text-zinc-500'}`}>
           <span className="font-semibold">Segment {hoveredSeg + 1}</span>
           <span>{formatShort(segments[hoveredSeg]?.start || 0)} → {formatShort(segments[hoveredSeg]?.end || 0)}</span>
@@ -594,6 +614,102 @@ const TimelineEditor = ({
             </span>
           ) : null}
           <span className="ml-auto opacity-60">Drag left/right to adjust timing</span>
+        </div>
+      )}
+
+      {/* Split Speaker Picker Popup */}
+      {splitPicker && (
+        <div className={`border-t px-5 py-4 ${d ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-zinc-200'}`}
+          data-testid="split-speaker-picker">
+          <div className="flex items-center gap-2 mb-3">
+            <Scissors className={`w-4 h-4 ${d ? 'text-violet-400' : 'text-violet-600'}`} weight="bold" />
+            <span className={`text-sm font-bold ${d ? 'text-zinc-200' : 'text-zinc-800'}`}>
+              Pick speaker for each part
+            </span>
+          </div>
+
+          <div className="flex gap-4">
+            {/* Part 1 */}
+            <div className={`flex-1 rounded-lg p-3 border ${d ? 'bg-zinc-800/50 border-zinc-700' : 'bg-zinc-50 border-zinc-200'}`}>
+              <p className={`text-[10px] font-bold uppercase mb-1 ${d ? 'text-zinc-500' : 'text-zinc-400'}`}>Part 1</p>
+              <p className={`text-xs mb-2.5 truncate ${d ? 'text-zinc-300' : 'text-zinc-700'}`}>
+                {splitPicker.part1Text || '...'}
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {actors.map(actor => {
+                  const isMale = actor.gender === 'male';
+                  const isSelected = splitPicker.part1Speaker === actor.id;
+                  return (
+                    <button key={actor.id}
+                      onClick={() => setSplitPicker(p => ({ ...p, part1Speaker: actor.id }))}
+                      data-testid={`split-part1-${actor.id}`}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all border ${
+                        isSelected
+                          ? (isMale
+                            ? 'bg-blue-500 text-white border-blue-400 ring-2 ring-blue-300/40'
+                            : 'bg-pink-500 text-white border-pink-400 ring-2 ring-pink-300/40')
+                          : (d ? 'bg-zinc-700 text-zinc-300 border-zinc-600 hover:border-zinc-500' : 'bg-white text-zinc-600 border-zinc-300 hover:border-zinc-400')
+                      }`}>
+                      {isMale
+                        ? <GenderMale className="w-3.5 h-3.5" weight="bold" />
+                        : <GenderFemale className="w-3.5 h-3.5" weight="bold" />}
+                      {actor.label || actor.id}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Part 2 */}
+            <div className={`flex-1 rounded-lg p-3 border ${d ? 'bg-zinc-800/50 border-zinc-700' : 'bg-zinc-50 border-zinc-200'}`}>
+              <p className={`text-[10px] font-bold uppercase mb-1 ${d ? 'text-zinc-500' : 'text-zinc-400'}`}>Part 2</p>
+              <p className={`text-xs mb-2.5 truncate ${d ? 'text-zinc-300' : 'text-zinc-700'}`}>
+                {splitPicker.part2Text || '...'}
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {actors.map(actor => {
+                  const isMale = actor.gender === 'male';
+                  const isSelected = splitPicker.part2Speaker === actor.id;
+                  return (
+                    <button key={actor.id}
+                      onClick={() => setSplitPicker(p => ({ ...p, part2Speaker: actor.id }))}
+                      data-testid={`split-part2-${actor.id}`}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all border ${
+                        isSelected
+                          ? (isMale
+                            ? 'bg-blue-500 text-white border-blue-400 ring-2 ring-blue-300/40'
+                            : 'bg-pink-500 text-white border-pink-400 ring-2 ring-pink-300/40')
+                          : (d ? 'bg-zinc-700 text-zinc-300 border-zinc-600 hover:border-zinc-500' : 'bg-white text-zinc-600 border-zinc-300 hover:border-zinc-400')
+                      }`}>
+                      {isMale
+                        ? <GenderMale className="w-3.5 h-3.5" weight="bold" />
+                        : <GenderFemale className="w-3.5 h-3.5" weight="bold" />}
+                      {actor.label || actor.id}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="flex items-center gap-2 mt-3">
+            <button
+              onClick={() => {
+                onSplitSegment?.(splitPicker.segIdx, splitPicker.part1Speaker, splitPicker.part2Speaker);
+                setSplitPicker(null);
+              }}
+              data-testid="split-confirm-btn"
+              className="px-4 py-1.5 text-[11px] font-bold rounded-lg bg-emerald-600 text-white hover:bg-emerald-500 transition-colors shadow-sm">
+              Split & Assign
+            </button>
+            <button
+              onClick={() => setSplitPicker(null)}
+              data-testid="split-cancel-btn"
+              className={`px-3 py-1.5 text-[11px] font-semibold rounded-lg border transition-colors ${d ? 'text-zinc-400 border-zinc-700 hover:bg-zinc-800' : 'text-zinc-500 border-zinc-300 hover:bg-zinc-100'}`}>
+              Cancel
+            </button>
+          </div>
         </div>
       )}
     </div>
