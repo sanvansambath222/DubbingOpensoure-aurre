@@ -2138,17 +2138,37 @@ async def generate_audio_segments(project_id: str, speed: int = Query(2), bg_vol
         queue_waitlist.append(project_id)
         
         async def _wait_and_generate():
-            while queue_lock.locked() or (queue_waitlist and queue_waitlist[0] != project_id):
-                try:
-                    pos = queue_waitlist.index(project_id) + 1
-                    queue_status[project_id].update({"position": pos, "status": "queued", "step": "waiting"})
-                except ValueError:
-                    break
-                await asyncio.sleep(3)
-            if project_id in queue_waitlist:
-                queue_waitlist.remove(project_id)
-            async with queue_lock:
-                await _generate_audio_sync(project_id, project, segments, speed, user, bg_volume)
+            try:
+                while queue_lock.locked() or (queue_waitlist and queue_waitlist[0] != project_id):
+                    try:
+                        pos = queue_waitlist.index(project_id) + 1
+                        queue_status[project_id].update({"position": pos, "status": "queued", "step": "waiting"})
+                    except ValueError:
+                        break
+                    await asyncio.sleep(3)
+                if project_id in queue_waitlist:
+                    queue_waitlist.remove(project_id)
+                async with queue_lock:
+                    # Re-fetch fresh project data from DB (may have changed while queued)
+                    fresh_project = strip_oid(await db.projects.find_one({"project_id": project_id, "user_id": user.user_id}))
+                    if not fresh_project:
+                        logger.error(f"Queue: Project {project_id} not found when dequeued")
+                        queue_status[project_id] = {"position": 0, "status": "error", "step": "error"}
+                        return
+                    fresh_segments = fresh_project.get("segments", [])
+                    if not fresh_segments:
+                        logger.error(f"Queue: Project {project_id} has no segments when dequeued")
+                        queue_status[project_id] = {"position": 0, "status": "error", "step": "error"}
+                        return
+                    await _generate_audio_sync(project_id, fresh_project, fresh_segments, speed, user, bg_volume)
+                    queue_status[project_id] = {"position": 0, "status": "done", "step": "done"}
+            except Exception as e:
+                logger.error(f"Queue audio generation failed for {project_id}: {e}")
+                queue_status[project_id] = {"position": 0, "status": "error", "step": "error"}
+                await db.projects.update_one(
+                    {"project_id": project_id},
+                    {"$set": {"status": "error", "updated_at": datetime.now(timezone.utc).isoformat()}}
+                )
         
         asyncio.create_task(_wait_and_generate())
         return {"status": "queued", "position": position, "message": f"Server is busy. You are #{position} in queue."}
@@ -2156,8 +2176,17 @@ async def generate_audio_segments(project_id: str, speed: int = Query(2), bg_vol
     # Run in background with lock if: many segments OR Demucs needed
     if len(segments) > 100 or (bg_volume > 0 and project.get("file_type") == "video"):
         async def _bg_with_lock():
-            async with queue_lock:
-                await _generate_audio_sync(project_id, project, segments, speed, user, bg_volume)
+            try:
+                async with queue_lock:
+                    await _generate_audio_sync(project_id, project, segments, speed, user, bg_volume)
+                queue_status[project_id] = {"position": 0, "status": "done", "step": "done"}
+            except Exception as e:
+                logger.error(f"Background audio generation failed for {project_id}: {e}")
+                queue_status[project_id] = {"position": 0, "status": "error", "step": "error"}
+                await db.projects.update_one(
+                    {"project_id": project_id},
+                    {"$set": {"status": "error", "updated_at": datetime.now(timezone.utc).isoformat()}}
+                )
         asyncio.create_task(_bg_with_lock())
         return {"status": "processing", "message": f"Generating audio for {len(segments)} segments. Check progress bar."}
 
@@ -2443,10 +2472,13 @@ async def _generate_audio_sync(project_id, project, segments, speed, user, bg_vo
             {"project_id": project_id},
             {"$set": {"dubbed_audio_path": result["path"], "status": "audio_ready", "updated_at": datetime.now(timezone.utc).isoformat()}}
         )
+        # Update queue status to done
+        queue_status[project_id] = {"position": 0, "status": "done", "step": "done"}
         return await db.projects.find_one({"project_id": project_id}, {"_id": 0})
 
     except Exception as e:
         logger.error(f"Audio generation error: {str(e)}")
+        queue_status[project_id] = {"position": 0, "status": "error", "step": "error"}
         await db.projects.update_one(
             {"project_id": project_id},
             {"$set": {"status": "error", "updated_at": datetime.now(timezone.utc).isoformat()}}
@@ -3561,6 +3593,51 @@ async def tool_add_logo(video: UploadFile = File(...), logo: UploadFile = File(.
         cmd = ["ffmpeg", "-y", "-i", vid_path, "-i", logo_path,
                "-filter_complex", filter_complex, "-map", "[out]", "-map", "0:a?",
                "-c:a", "copy", out_path]
+        r = subprocess.run(cmd, capture_output=True, text=True)
+        if r.returncode != 0:
+            raise HTTPException(status_code=500, detail=f"FFmpeg error: {r.stderr[:300]}")
+    return {"download_url": f"/api/tools/download/{out_name}"}
+
+# 10. Remove Logo
+@api_router.post("/tools/remove-logo")
+async def tool_remove_logo(video: UploadFile = File(...),
+    x: int = Form(0), y: int = Form(0), w: int = Form(100), h: int = Form(50),
+    mode: str = Form("blur"),
+    authorization: str = Header(None)):
+    """Remove or hide a logo/watermark from video using blur or delogo filter."""
+    await get_current_user(authorization)
+    with tempfile.TemporaryDirectory() as tmp:
+        vid_path = os.path.join(tmp, f"input_{video.filename}")
+        out_name = f"nologo_{uuid.uuid4().hex[:8]}.mp4"
+        out_path = str(TOOLS_OUTPUT_DIR / out_name)
+        with open(vid_path, "wb") as f: f.write(await video.read())
+        await check_video_duration(vid_path)
+        
+        # Get video dimensions
+        probe_cmd = ["ffprobe", "-v", "error", "-select_streams", "v:0",
+                      "-show_entries", "stream=width,height", "-of", "csv=p=0", vid_path]
+        probe = subprocess.run(probe_cmd, capture_output=True, text=True)
+        if probe.returncode != 0:
+            raise HTTPException(status_code=400, detail="Cannot read video dimensions")
+        dims = probe.stdout.strip().split(",")
+        vid_w, vid_h = int(dims[0]), int(dims[1])
+        
+        # Convert percentage coordinates to pixel values
+        px = max(0, int(vid_w * x / 100))
+        py = max(0, int(vid_h * y / 100))
+        pw = max(10, int(vid_w * w / 100))
+        ph = max(10, int(vid_h * h / 100))
+        # Clamp to video bounds
+        pw = min(pw, vid_w - px)
+        ph = min(ph, vid_h - py)
+        
+        if mode == "delogo":
+            vf = f"delogo=x={px}:y={py}:w={pw}:h={ph}"
+        else:
+            # Heavy blur over the selected area
+            vf = f"split[main][blur];[blur]crop={pw}:{ph}:{px}:{py},boxblur=20:5[blurred];[main][blurred]overlay={px}:{py}"
+        
+        cmd = ["ffmpeg", "-y", "-i", vid_path, "-vf", vf, "-c:a", "copy", out_path]
         r = subprocess.run(cmd, capture_output=True, text=True)
         if r.returncode != 0:
             raise HTTPException(status_code=500, detail=f"FFmpeg error: {r.stderr[:300]}")

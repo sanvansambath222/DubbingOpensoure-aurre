@@ -196,7 +196,7 @@ const Editor = () => {
     startProgressPoll();
     try {
       const r = await axios.post(`${API}/projects/${projectId}/generate-audio-segments?speed=${ttsSpeed}&bg_volume=${bgVolume}`, {}, { headers: { Authorization: `Bearer ${token}` }, timeout: 900000 });
-      if (r.data.status === "processing") {
+      if (r.data.status === "processing" || r.data.status === "queued") {
         // Long video - background processing, poll until done
         toast.info(r.data.message || "Processing in background...");
         const pollUntilDone = async () => {

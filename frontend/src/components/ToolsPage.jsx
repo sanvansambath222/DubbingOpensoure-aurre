@@ -6,7 +6,7 @@ import {
   ArrowsOut, ArrowsClockwise, ArrowLeft, UploadSimple, DownloadSimple,
   SpinnerGap, MicrophoneStage, Waveform, Image as ImageIcon,
   CloudArrowUp, File, FileAudio, FileVideo, X, Check, Info, CaretDown,
-  Lightning, Play, ArrowRight
+  Lightning, Play, ArrowRight, Eraser
 } from "@phosphor-icons/react";
 import { useAuth, ThemeToggle } from "./AuthContext";
 import { API } from "./constants";
@@ -40,6 +40,7 @@ const TOOLS = [
   { id: "resize", name: "Resize Video", desc: "TikTok, Reels, YouTube formats", icon: ArrowsOut, accent: "blue", tag: null, span: "" },
   { id: "convert", name: "Convert", desc: "MP4, MOV, AVI, MP3, WAV and more format conversions", icon: ArrowsClockwise, accent: "orange", tag: null, span: "md:col-span-2" },
   { id: "add-logo", name: "Add Logo", desc: "Drag & drop watermark overlay with position control", icon: ImageIcon, accent: "pink", tag: null, span: "md:col-span-2" },
+  { id: "remove-logo", name: "Remove Logo", desc: "AI-powered logo & watermark removal from any video", icon: Eraser, accent: "rose", tag: "AI", span: "" },
 ];
 
 // Accent color system
@@ -53,6 +54,7 @@ const AC = {
   blue:    { bg: "bg-blue-500",    bg10: "bg-blue-500/10",    bg20: "bg-blue-500/20",    text: "text-blue-400",    textL: "text-blue-600",    border: "border-blue-500/20",    ring: "ring-blue-500/30",    gradient: "from-blue-500 to-indigo-600" },
   orange:  { bg: "bg-orange-500",  bg10: "bg-orange-500/10",  bg20: "bg-orange-500/20",  text: "text-orange-400",  textL: "text-orange-600",  border: "border-orange-500/20",  ring: "ring-orange-500/30",  gradient: "from-orange-500 to-red-600" },
   pink:    { bg: "bg-pink-500",    bg10: "bg-pink-500/10",    bg20: "bg-pink-500/20",    text: "text-pink-400",    textL: "text-pink-600",    border: "border-pink-500/20",    ring: "ring-pink-500/30",    gradient: "from-pink-500 to-rose-600" },
+  rose:    { bg: "bg-rose-500",    bg10: "bg-rose-500/10",    bg20: "bg-rose-500/20",    text: "text-rose-400",    textL: "text-rose-600",    border: "border-rose-500/20",    ring: "ring-rose-500/30",    gradient: "from-rose-500 to-red-600" },
 };
 
 // --- Shared UI Components ---
@@ -767,10 +769,150 @@ const AddLogoTool = ({ token, d }) => {
   );
 };
 
+// ---- Remove Logo Tool ----
+const RemoveLogoTool = ({ token, d }) => {
+  const [video, setVideo] = useState(null);
+  const [videoPreview, setVideoPreview] = useState(null);
+  const [videoDims, setVideoDims] = useState({ w: 1920, h: 1080 });
+  const [selection, setSelection] = useState({ x: 5, y: 3, w: 12, h: 6 });
+  const [mode, setMode] = useState("blur");
+  const [processing, setProcessing] = useState(false);
+  const [result, setResult] = useState(null);
+  const [drawing, setDrawing] = useState(false);
+  const [drawStart, setDrawStart] = useState(null);
+  const canvasRef = useRef(null);
+  const videoRef = useRef(null);
+
+  const onVideoSelect = (f) => {
+    setVideo(f);
+    setResult(null);
+    if (f) {
+      const url = URL.createObjectURL(f);
+      setVideoPreview(url);
+      const el = document.createElement('video');
+      el.onloadedmetadata = () => { setVideoDims({ w: el.videoWidth || 1920, h: el.videoHeight || 1080 }); };
+      el.src = url;
+    } else { setVideoPreview(null); }
+  };
+
+  const getRelPos = (e) => {
+    if (!canvasRef.current) return { x: 0, y: 0 };
+    const rect = canvasRef.current.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    return {
+      x: Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100)),
+      y: Math.max(0, Math.min(100, ((clientY - rect.top) / rect.height) * 100)),
+    };
+  };
+
+  const onMouseDown = (e) => {
+    e.preventDefault();
+    const pos = getRelPos(e);
+    setDrawStart(pos);
+    setDrawing(true);
+    setSelection({ x: pos.x, y: pos.y, w: 0, h: 0 });
+  };
+
+  const onMouseMove = useCallback((e) => {
+    if (!drawing || !drawStart) return;
+    const pos = getRelPos(e);
+    setSelection({
+      x: Math.min(drawStart.x, pos.x),
+      y: Math.min(drawStart.y, pos.y),
+      w: Math.abs(pos.x - drawStart.x),
+      h: Math.abs(pos.y - drawStart.y),
+    });
+  }, [drawing, drawStart]);
+
+  const onMouseUp = useCallback(() => { setDrawing(false); setDrawStart(null); }, []);
+
+  const handleProcess = async () => {
+    if (!video) return toast.error("Upload a video first");
+    if (selection.w < 1 || selection.h < 1) return toast.error("Draw a box around the logo area");
+    setProcessing(true);
+    try {
+      const fd = new FormData();
+      fd.append("video", video);
+      fd.append("x", Math.round(selection.x));
+      fd.append("y", Math.round(selection.y));
+      fd.append("w", Math.round(selection.w));
+      fd.append("h", Math.round(selection.h));
+      fd.append("mode", mode);
+      const r = await axios.post(`${API}/tools/remove-logo`, fd, { headers: { Authorization: `Bearer ${token}` }, timeout: 600000 });
+      setResult(r.data.download_url);
+      toast.success("Logo removed!");
+    } catch (e) { toast.error(e.response?.data?.detail || "Failed to remove logo"); }
+    finally { setProcessing(false); }
+  };
+
+  return (
+    <div className="space-y-5" onMouseMove={onMouseMove} onMouseUp={onMouseUp} onMouseLeave={onMouseUp} onTouchMove={onMouseMove} onTouchEnd={onMouseUp}>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        <div className="lg:col-span-2">
+          <div className={`rounded-xl overflow-hidden border ${d?'border-zinc-700/50':'border-zinc-200'}`}>
+            <div className={`flex items-center justify-between px-4 py-2.5 ${d?'bg-zinc-800/60':'bg-zinc-100/80'}`}>
+              <span className={`text-[10px] font-bold uppercase tracking-[0.15em] ${d?'text-zinc-400':'text-zinc-500'}`}>Draw box around logo to remove</span>
+              <span className={`text-[10px] font-mono ${d?'text-zinc-500':'text-zinc-400'}`}>
+                {selection.w > 0 ? `${Math.round(selection.x)}%,${Math.round(selection.y)}% — ${Math.round(selection.w)}x${Math.round(selection.h)}%` : 'Click & drag'}
+              </span>
+            </div>
+            <div ref={canvasRef}
+              onMouseDown={onMouseDown} onTouchStart={onMouseDown}
+              className={`relative w-full ${d?'bg-zinc-900':'bg-zinc-950'}`}
+              style={{ aspectRatio: '16/9', cursor: drawing ? 'crosshair' : 'crosshair', userSelect: 'none', touchAction: 'none' }}>
+              {videoPreview ? (
+                <video ref={videoRef} src={videoPreview} muted className="w-full h-full object-contain pointer-events-none" />
+              ) : (
+                <div className="w-full h-full flex flex-col items-center justify-center gap-2">
+                  <FileVideo className="w-8 h-8 text-zinc-700" />
+                  <span className="text-xs text-zinc-600">Upload video to select logo area</span>
+                </div>
+              )}
+              {selection.w > 0 && selection.h > 0 && (
+                <div data-testid="logo-selection-box"
+                  style={{
+                    position: 'absolute', left: `${selection.x}%`, top: `${selection.y}%`,
+                    width: `${selection.w}%`, height: `${selection.h}%`,
+                    border: '2px dashed #f43f5e', backgroundColor: 'rgba(244,63,94,0.15)',
+                    pointerEvents: 'none', zIndex: 10, borderRadius: '4px',
+                  }}>
+                  <div className="absolute -top-5 left-0 text-[9px] font-mono text-rose-400 bg-zinc-900/80 px-1.5 py-0.5 rounded">
+                    {Math.round(selection.w * videoDims.w / 100)}x{Math.round(selection.h * videoDims.h / 100)}px
+                  </div>
+                </div>
+              )}
+              <div className="absolute inset-0 pointer-events-none" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px)', backgroundSize: '10% 10%' }} />
+            </div>
+          </div>
+        </div>
+        <div className="space-y-4">
+          <DropZone accept="video/*" label="Upload Video" icon={FileVideo} file={video} onFile={onVideoSelect} d={d} />
+          <Select label="Removal Method" value={mode} onChange={setMode} d={d} options={[
+            { value: "blur", label: "Blur (Heavy Blur Over Area)" },
+            { value: "delogo", label: "Delogo (FFmpeg Smart Fill)" },
+          ]} />
+          <div className={`rounded-xl p-3 ${d?'bg-zinc-800/40 border border-zinc-700/40':'bg-amber-50 border border-amber-200'}`}>
+            <div className="flex gap-2 items-start">
+              <Info className={`w-4 h-4 mt-0.5 flex-shrink-0 ${d?'text-amber-400':'text-amber-600'}`} />
+              <p className={`text-xs leading-relaxed ${d?'text-zinc-400':'text-amber-800'}`}>
+                <strong>Blur</strong> = cover with heavy blur (good for any logo).<br/>
+                <strong>Delogo</strong> = FFmpeg smart fill (better for simple backgrounds).
+              </p>
+            </div>
+          </div>
+          <ProcessBtn onClick={handleProcess} processing={processing} label="Remove Logo & Download" color="from-rose-500 to-red-600" d={d} />
+          {result && <DownloadBtn url={result} label="Download Clean Video" d={d} />}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const TOOL_COMPONENTS = {
   "voice-replace": VoiceReplaceTool, "subtitles": SubtitlesTool, "translate": TranslateTool,
   "trim": TrimTool, "ai-clips": AIClipsTool, "tts": TTSTool,
-  "resize": ResizeTool, "convert": ConvertTool, "add-logo": AddLogoTool,
+  "resize": ResizeTool, "convert": ConvertTool, "add-logo": AddLogoTool, "remove-logo": RemoveLogoTool,
 };
 
 // ---- Main Page ----
