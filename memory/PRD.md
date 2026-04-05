@@ -55,6 +55,7 @@ Build a video/audio dubbing platform with AI transcription, translation, TTS voi
 - [x] **Render Video with Timeline Offsets** — Backend `mix_audio_timeline` reads `timeline_offset` per segment to position dubbed voices at user-adjusted times. Background music layer unaffected. (2026-04-05)
 
 - [x] **Timeline BG Playback** — Play/Pause/Stop buttons on timeline to hear background audio while dragging segments, red playhead auto-scrolls to follow playback position (2026-04-05)
+- [x] **Timeline Split & Speaker Picker** — Click block → floating toolbar with Split (scissors) + Speaker buttons. Split cuts block into 2 at midpoint. Speaker picker reassigns block to different actor (Boy/Girl) with color change. (2026-04-05)
 
 ## Upcoming Tasks
 - [ ] ABA PayWay Payment Integration (blocked: waiting for sandbox API keys from user) — P1
