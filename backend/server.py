@@ -3600,17 +3600,26 @@ async def tool_add_logo(video: UploadFile = File(...), logo: UploadFile = File(.
         await check_video_duration(vid_path)
         with open(logo_path, "wb") as f: f.write(await logo.read())
         
+        # Get original video dimensions
+        probe_cmd = ["ffprobe", "-v", "error", "-select_streams", "v:0",
+                      "-show_entries", "stream=width,height", "-of", "csv=p=0", vid_path]
+        probe = subprocess.run(probe_cmd, capture_output=True, text=True)
+        if probe.returncode != 0:
+            raise HTTPException(status_code=400, detail="Cannot read video dimensions")
+        dims = probe.stdout.strip().split(",")
+        vid_w, vid_h = int(dims[0]), int(dims[1])
+        
         # Convert percent position to FFmpeg overlay expression
-        # position_x and position_y are 0-100 percent of video
         px = max(0, min(100, position_x))
         py = max(0, min(100, position_y))
         overlay_x = f"(W-w)*{px}/100"
         overlay_y = f"(H-h)*{py}/100"
         overlay_pos = f"{overlay_x}:{overlay_y}"
         
-        # Build FFmpeg filter
+        # Scale logo relative to VIDEO width (not logo's own size)
+        logo_target_w = max(10, int(vid_w * logo_size / 100))
         alpha = opacity / 100.0
-        scale_filter = f"[1:v]scale=iw*{logo_size}/100:-1"
+        scale_filter = f"[1:v]scale={logo_target_w}:-1"
         if alpha < 1.0:
             scale_filter += f",format=rgba,colorchannelmixer=aa={alpha}"
         scale_filter += "[logo]"
@@ -3619,7 +3628,7 @@ async def tool_add_logo(video: UploadFile = File(...), logo: UploadFile = File(.
         
         cmd = ["ffmpeg", "-y", "-i", vid_path, "-i", logo_path,
                "-filter_complex", filter_complex, "-map", "[out]", "-map", "0:a?",
-               "-c:a", "copy", out_path]
+               "-c:a", "copy", "-s", f"{vid_w}x{vid_h}", out_path]
         r = subprocess.run(cmd, capture_output=True, text=True)
         if r.returncode != 0:
             raise HTTPException(status_code=500, detail=f"FFmpeg error: {r.stderr[:300]}")
