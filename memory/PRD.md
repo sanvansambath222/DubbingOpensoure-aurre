@@ -52,9 +52,9 @@ Build a video/audio dubbing platform with AI transcription, translation, TTS voi
 - [x] GPT Gender Detection Refinement in auto-process flow
 - [x] Meta MMS TTS pure model output (no FFmpeg speed/pitch)
 - [x] **Interactive Timeline Editor** — Drag-and-drop colored blocks (blue=boy, pink=girl) on timeline to adjust audio segment timing, with zoom controls, time ruler, background audio track, click-to-seek video sync, and save/reset offsets (2026-04-05)
+- [x] **Render Video with Timeline Offsets** — Backend `mix_audio_timeline` reads `timeline_offset` per segment to position dubbed voices at user-adjusted times. Background music layer unaffected. (2026-04-05)
 
 ## Upcoming Tasks
-- [ ] Render Final Video with Timeline Adjustments (backend support for timeline_offset during mixing) — P0
 - [ ] ABA PayWay Payment Integration (blocked: waiting for sandbox API keys from user) — P1
 - [ ] Install `faster-whisper` locally to replace OpenAI Whisper API — P2
 - [ ] Refactor server.py (~4200 lines → split into routes/services) — P1

@@ -534,12 +534,22 @@ def separate_custom_and_tts_segments(segments: list, actor_voice_map: dict) -> t
 
 
 def mix_audio_timeline(segment_audio_pairs: list, segments: list, total_duration_ms: int, has_timestamps: bool):
-    """Mix audio segments into a timeline-aligned or concatenated output."""
+    """Mix audio segments into a timeline-aligned or concatenated output.
+    Supports timeline_offset (seconds) per segment for manual timing adjustments."""
     from pydub import AudioSegment
     if has_timestamps and total_duration_ms > 0:
-        combined = AudioSegment.silent(duration=total_duration_ms)
+        # Check if any segment has timeline_offset - extend duration if needed
+        max_end_ms = total_duration_ms
         for seg, audio in segment_audio_pairs:
-            start_ms = int(seg.get("start", 0) * 1000)
+            offset = seg.get("timeline_offset", 0) or 0
+            end_ms = int((seg.get("end", 0) + offset) * 1000)
+            if end_ms > max_end_ms:
+                max_end_ms = end_ms + 1000
+        combined = AudioSegment.silent(duration=max_end_ms)
+        for seg, audio in segment_audio_pairs:
+            offset = seg.get("timeline_offset", 0) or 0
+            start_ms = int((seg.get("start", 0) + offset) * 1000)
+            start_ms = max(0, start_ms)
             seg_duration_ms = int((seg.get("end", 0) - seg.get("start", 0)) * 1000)
             audio = fit_audio_to_duration(audio, seg_duration_ms)
             combined = combined.overlay(audio, position=start_ms)
