@@ -759,7 +759,7 @@ def fit_audio_to_duration(audio, target_duration_ms: int):
 
 
 # --- Constants ---
-TTS_BATCH_SIZE = 5
+TTS_BATCH_SIZE = 10
 TRANSLATE_CHUNK_SIZE = 50
 POLL_INTERVAL_S = 1.5
 REQUEST_TIMEOUT_MS = 300000
@@ -1325,7 +1325,8 @@ async def logout(authorization: str = Header(None)):
 async def telegram_generate_code(authorization: str = Header(None)):
     """Generate a one-time code for linking Telegram account."""
     user = await get_current_user(authorization)
-    import random, string
+    import random
+    import string
     code = "VXD-" + "".join(random.choices(string.ascii_uppercase + string.digits, k=6))
     # Save to MongoDB (survives restart)
     await db.telegram_codes.delete_many({"user_id": user.user_id})  # Remove old codes
@@ -1828,7 +1829,7 @@ Include ALL indices 0 to """ + str(len(segments)-1) + """. role MUST be in Engli
                                 {"project_id": project_id},
                                 {"$set": {"segments": segs, "actors": new_actors, "updated_at": datetime.now(timezone.utc).isoformat()}}
                             )
-                            logger.info(f"GPT role+gender detection complete (background)")
+                            logger.info("GPT role+gender detection complete (background)")
                 except Exception as e:
                     logger.warning(f"GPT role detection failed (non-critical): {e}")
             
@@ -1867,11 +1868,13 @@ async def translate_segments(project_id: str, target_language: str = Query("km")
         import time as _time
         queue_status[project_id] = {"status": "processing", "step": "translating", "progress": 0, "total": len(segments), "started_at": _time.time()}
         
-        # Chunk translation for long videos
+        # Parallel chunk translation for speed
+        chunks = []
         for chunk_start in range(0, len(segments), TRANSLATE_CHUNK_SIZE):
             chunk_end = min(chunk_start + TRANSLATE_CHUNK_SIZE, len(segments))
-            chunk = segments[chunk_start:chunk_end]
-            
+            chunks.append((chunk_start, chunk_end, segments[chunk_start:chunk_end]))
+        
+        async def translate_chunk(chunk_start, chunk_end, chunk):
             chat = LlmChat(
                 api_key=EMERGENT_LLM_KEY,
                 session_id=f"translate_seg_{project_id}_{uuid.uuid4().hex[:6]}",
@@ -1882,6 +1885,7 @@ Only output translations, nothing else."""
             chat.with_model("openai", "gpt-5.2")
             input_text = "\n".join([f"{i}: {s['original']}" for i, s in enumerate(chunk)])
             translations = await chat.send_message(UserMessage(text=input_text))
+            results = {}
             lines = translations.strip().split("\n")
             for line in lines:
                 if ":" in line:
@@ -1889,11 +1893,22 @@ Only output translations, nothing else."""
                         idx_str, trans = line.split(":", 1)
                         idx = int(idx_str.strip())
                         if idx < len(chunk):
-                            segments[chunk_start + idx]["translated"] = trans.strip()
+                            results[chunk_start + idx] = trans.strip()
                     except (ValueError, IndexError):
                         pass
-            queue_status[project_id]["progress"] = chunk_end
-            logger.info(f"Translation chunk: {chunk_end}/{len(segments)} done")
+            return results
+        
+        # Run up to 3 translation chunks in parallel
+        PARALLEL_TRANSLATE = 3
+        for batch_start in range(0, len(chunks), PARALLEL_TRANSLATE):
+            batch = chunks[batch_start:batch_start + PARALLEL_TRANSLATE]
+            results = await asyncio.gather(*[translate_chunk(cs, ce, ch) for cs, ce, ch in batch])
+            for result_dict in results:
+                for idx, trans in result_dict.items():
+                    segments[idx]["translated"] = trans
+            done_count = min((batch_start + PARALLEL_TRANSLATE) * TRANSLATE_CHUNK_SIZE, len(segments))
+            queue_status[project_id]["progress"] = done_count
+            logger.info(f"Translation parallel batch done: {done_count}/{len(segments)}")
         await db.projects.update_one(
             {"project_id": project_id},
             {"$set": {
@@ -2306,7 +2321,7 @@ async def _generate_audio_sync(project_id, project, segments, speed, user, bg_vo
                         logger.warning(f"Google TTS attempt {attempt+1}/3 failed: {e}")
                         if attempt < 2:
                             await asyncio.sleep(1)
-                logger.error(f"Google TTS failed after 3 attempts, falling back to Edge TTS")
+                logger.error("Google TTS failed after 3 attempts, falling back to Edge TTS")
 
             # Gemini TTS
             if provider == "gemini" and GEMINI_TTS_API_KEY and speaker in actor_gemini_voice_map and not gemini_quota_exhausted:
@@ -2348,7 +2363,7 @@ async def _generate_audio_sync(project_id, project, segments, speed, user, bg_vo
                                 logger.warning("Gemini quota exhausted, switching all remaining to Edge TTS")
                         elif attempt < 1:
                             await asyncio.sleep(2)
-                logger.error(f"Gemini TTS failed, falling back to Edge TTS")
+                logger.error("Gemini TTS failed, falling back to Edge TTS")
 
             # Edge TTS or MMS TTS or KLEA TTS (default or fallback)
             voice_id = actor_ai_voice_map.get(speaker)
@@ -3109,7 +3124,8 @@ async def preview_gemini_tts(req: GCloudTTSRequest):
 
 async def synthesize_gemini_tts(text: str, voice_name: str) -> bytes:
     """Synthesize speech using Gemini TTS. Returns WAV bytes."""
-    import wave, io
+    import wave
+    import io
     from google import genai
     from google.genai import types as gtypes
 
@@ -3270,7 +3286,7 @@ async def tool_add_subtitles(video: UploadFile = File(...), srt: UploadFile = Fi
     user = await get_current_user(authorization)
     with tempfile.TemporaryDirectory() as tmp:
         vid_path = os.path.join(tmp, f"input_{video.filename}")
-        srt_path = os.path.join(tmp, f"subs.srt")
+        srt_path = os.path.join(tmp, "subs.srt")
         out_name = f"subtitled_{uuid.uuid4().hex[:8]}.mp4"
         out_path = str(TOOLS_OUTPUT_DIR / out_name)
         with open(vid_path, "wb") as f: f.write(await video.read())

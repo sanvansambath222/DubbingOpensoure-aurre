@@ -830,7 +830,7 @@ const Editor = () => {
                   <span>Off</span><span>Low</span><span>Full</span>
                 </div>
                 <p className={`text-[9px] mt-1 ${d?'text-zinc-600':'text-zinc-400'}`}>
-                  {bgVolume === 0 ? 'No original audio - only dubbed voice' : 'Keeps background music + sound effects'}
+                  {bgVolume === 0 ? 'No original audio - only dubbed voice (FASTEST)' : 'Keeps background music (uses Demucs AI - slower processing)'}
                 </p>
               </div>
             )}
