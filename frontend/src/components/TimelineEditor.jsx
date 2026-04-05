@@ -41,6 +41,7 @@ const TimelineEditor = ({
   const [offsets, setOffsets] = useState({});
   const [hoveredSeg, setHoveredSeg] = useState(null);
   const [selectedSeg, setSelectedSeg] = useState(null);
+  const [draggingPlayhead, setDraggingPlayhead] = useState(null);
   const hasChanges = Object.values(offsets).some(v => v !== 0);
 
   const duration = useMemo(() => {
@@ -113,7 +114,7 @@ const TimelineEditor = ({
   }, [dragging, handleMouseMove, handleMouseUp]);
 
   const handleTimelineClick = (e) => {
-    if (dragging) return;
+    if (dragging || draggingPlayhead) return;
     setSelectedSeg(null);
     const rect = containerRef.current?.getBoundingClientRect();
     if (!rect) return;
@@ -122,6 +123,37 @@ const TimelineEditor = ({
     const time = x / zoom;
     onSeekVideo?.(time);
   };
+
+  // Playhead drag
+  const handlePlayheadDown = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDraggingPlayhead({ startX: e.clientX, startTime: videoCurrentTime || 0 });
+  };
+
+  const handlePlayheadMove = useCallback((e) => {
+    if (!draggingPlayhead || !containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left + containerRef.current.scrollLeft - LABEL_WIDTH;
+    const time = Math.max(0, Math.min(duration, x / zoom));
+    onSeekVideo?.(time);
+  }, [draggingPlayhead, zoom, duration, onSeekVideo]);
+
+  const handlePlayheadUp = useCallback(() => {
+    setDraggingPlayhead(null);
+  }, []);
+
+  useEffect(() => {
+    if (!draggingPlayhead) return;
+    const move = (e) => handlePlayheadMove(e);
+    const up = () => handlePlayheadUp();
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', up);
+    return () => {
+      window.removeEventListener('mousemove', move);
+      window.removeEventListener('mouseup', up);
+    };
+  }, [draggingPlayhead, handlePlayheadMove, handlePlayheadUp]);
 
   const resetOffsets = () => {
     setOffsets({});
@@ -484,19 +516,37 @@ const TimelineEditor = ({
             );
           })()}
 
-          {/* Playhead */}
-          <div className={`absolute top-0 z-40 pointer-events-none`}
-            style={{ left: playheadX, height: totalHeight }}
+          {/* Playhead - BIG draggable handle */}
+          <div className={`absolute top-0 z-40`}
+            style={{ left: playheadX - 1, height: totalHeight }}
             data-testid="timeline-playhead">
-            {/* Line */}
-            <div className={`absolute left-0 top-0 w-[2px] h-full transition-colors ${isPlaying ? 'bg-red-500' : 'bg-red-400/60'}`} />
-            {/* Top triangle handle */}
-            <div className={`absolute -left-[7px] -top-0.5`}>
-              <div className={`w-4 h-5 flex items-start justify-center ${isPlaying ? 'text-red-500' : 'text-red-400/60'}`}>
-                <svg width="16" height="20" viewBox="0 0 16 20" fill="currentColor">
-                  <path d="M0 0h16v12l-8 8-8-8V0z" />
-                </svg>
-              </div>
+            {/* Vertical line */}
+            <div className={`absolute left-[1px] top-0 w-[2px] h-full transition-colors ${
+              draggingPlayhead ? 'bg-red-500 shadow-lg shadow-red-500/30' : isPlaying ? 'bg-red-500' : 'bg-red-400/70'
+            }`} />
+            {/* Big draggable handle at top */}
+            <div
+              onMouseDown={handlePlayheadDown}
+              data-testid="timeline-playhead-handle"
+              className={`absolute -left-[13px] -top-[2px] cursor-grab active:cursor-grabbing group transition-transform ${
+                draggingPlayhead ? 'scale-110' : 'hover:scale-105'
+              }`}>
+              <svg width="28" height="32" viewBox="0 0 28 32" className="drop-shadow-lg">
+                {/* Handle body */}
+                <rect x="2" y="0" width="24" height="20" rx="4"
+                  className={`transition-colors ${
+                    draggingPlayhead ? 'fill-red-500' : isPlaying ? 'fill-red-500' : 'fill-red-400'
+                  }`} />
+                {/* Arrow pointing down */}
+                <polygon points="6,20 22,20 14,30"
+                  className={`transition-colors ${
+                    draggingPlayhead ? 'fill-red-500' : isPlaying ? 'fill-red-500' : 'fill-red-400'
+                  }`} />
+                {/* Grip lines inside handle */}
+                <line x1="10" y1="6" x2="10" y2="15" stroke="white" strokeWidth="1.5" strokeLinecap="round" opacity="0.5" />
+                <line x1="14" y1="6" x2="14" y2="15" stroke="white" strokeWidth="1.5" strokeLinecap="round" opacity="0.5" />
+                <line x1="18" y1="6" x2="18" y2="15" stroke="white" strokeWidth="1.5" strokeLinecap="round" opacity="0.5" />
+              </svg>
             </div>
           </div>
         </div>
