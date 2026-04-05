@@ -3605,7 +3605,7 @@ async def tool_remove_logo(video: UploadFile = File(...),
     mode: str = Form("blur"),
     authorization: str = Header(None)):
     """Remove or hide a logo/watermark from video using blur or delogo filter."""
-    await get_current_user(authorization)
+    user = await get_current_user(authorization)
     with tempfile.TemporaryDirectory() as tmp:
         vid_path = os.path.join(tmp, f"input_{video.filename}")
         out_name = f"nologo_{uuid.uuid4().hex[:8]}.mp4"
@@ -3641,7 +3641,25 @@ async def tool_remove_logo(video: UploadFile = File(...),
         r = subprocess.run(cmd, capture_output=True, text=True)
         if r.returncode != 0:
             raise HTTPException(status_code=500, detail=f"FFmpeg error: {r.stderr[:300]}")
-    return {"download_url": f"/api/tools/download/{out_name}"}
+    
+    # Send to Telegram if user has connected
+    telegram_sent = False
+    user_doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0})
+    tg_chat_id = user_doc.get("telegram_chat_id") if user_doc else None
+    if tg_chat_id and os.path.exists(out_path):
+        caption = f"Logo Removed ({mode})\nvoxidub.com"
+        telegram_sent = await send_telegram_video(tg_chat_id, out_path, caption)
+        if telegram_sent:
+            # Delete file after sending to save disk
+            try:
+                os.unlink(out_path)
+            except Exception:
+                pass
+    
+    return {
+        "download_url": f"/api/tools/download/{out_name}",
+        "telegram_sent": telegram_sent,
+    }
 
 # ===== License System (for Desktop .exe) =====
 class LicenseCheckReq(BaseModel):

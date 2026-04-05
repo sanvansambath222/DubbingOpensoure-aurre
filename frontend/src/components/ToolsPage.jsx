@@ -827,10 +827,13 @@ const RemoveLogoTool = ({ token, d }) => {
 
   const onMouseUp = useCallback(() => { setDrawing(false); setDrawStart(null); }, []);
 
+  const [telegramSent, setTelegramSent] = useState(false);
+
   const handleProcess = async () => {
     if (!video) return toast.error("Upload a video first");
     if (selection.w < 1 || selection.h < 1) return toast.error("Draw a box around the logo area");
     setProcessing(true);
+    setTelegramSent(false);
     try {
       const fd = new FormData();
       fd.append("video", video);
@@ -841,7 +844,12 @@ const RemoveLogoTool = ({ token, d }) => {
       fd.append("mode", mode);
       const r = await axios.post(`${API}/tools/remove-logo`, fd, { headers: { Authorization: `Bearer ${token}` }, timeout: 600000 });
       setResult(r.data.download_url);
-      toast.success("Logo removed!");
+      if (r.data.telegram_sent) {
+        setTelegramSent(true);
+        toast.success("Logo removed! Sent to your Telegram!");
+      } else {
+        toast.success("Logo removed!");
+      }
     } catch (e) { toast.error(e.response?.data?.detail || "Failed to remove logo"); }
     finally { setProcessing(false); }
   };
@@ -908,8 +916,13 @@ const RemoveLogoTool = ({ token, d }) => {
           </div>
         </div>
         <div className="space-y-3">
-          <ProcessBtn onClick={handleProcess} processing={processing} label="Remove Logo & Download" color="from-rose-500 to-red-600" d={d} />
-          {result && <DownloadBtn url={result} label="Download Clean Video" d={d} />}
+          <ProcessBtn onClick={handleProcess} processing={processing} label="Remove Logo" color="from-rose-500 to-red-600" d={d} />
+          {telegramSent && (
+            <div className={`rounded-xl p-3 text-center ${d?'bg-emerald-500/10 border border-emerald-500/30':'bg-emerald-50 border border-emerald-300'}`} data-testid="telegram-sent-badge">
+              <span className={`text-sm font-bold ${d?'text-emerald-400':'text-emerald-700'}`}>Sent to your Telegram!</span>
+            </div>
+          )}
+          {result && !telegramSent && <DownloadBtn url={result} label="Download Clean Video" d={d} />}
         </div>
       </div>
     </div>
