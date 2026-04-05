@@ -3633,9 +3633,20 @@ async def tool_remove_logo(video: UploadFile = File(...),
         
         if mode == "delogo":
             vf = f"delogo=x={px}:y={py}:w={pw}:h={ph}"
+        elif mode == "black":
+            # Solid black rectangle over the logo
+            vf = f"drawbox=x={px}:y={py}:w={pw}:h={ph}:color=black:t=fill"
+        elif mode == "mosaic":
+            # Pixelate/mosaic the selected area (scale down then scale up = pixelation)
+            mosaic_w = max(4, pw // 8)
+            mosaic_h = max(4, ph // 8)
+            vf = f"split[main][pix];[pix]crop={pw}:{ph}:{px}:{py},scale={mosaic_w}:{mosaic_h},scale={pw}:{ph}:flags=neighbor[mosaic];[main][mosaic]overlay={px}:{py}"
+        elif mode == "colorfill":
+            # Extreme blur to create solid color fill from surrounding area
+            vf = f"split[main][avg];[avg]crop={pw}:{ph}:{px}:{py},gblur=sigma=200[filled];[main][filled]overlay={px}:{py}"
         else:
-            # Heavy blur over the selected area
-            vf = f"split[main][blur];[blur]crop={pw}:{ph}:{px}:{py},boxblur=20:5[blurred];[main][blurred]overlay={px}:{py}"
+            # Strong blur over the selected area
+            vf = f"split[main][blur];[blur]crop={pw}:{ph}:{px}:{py},gblur=sigma=30[blurred];[main][blurred]overlay={px}:{py}"
         
         cmd = ["ffmpeg", "-y", "-i", vid_path, "-vf", vf, "-c:a", "copy", out_path]
         r = subprocess.run(cmd, capture_output=True, text=True)

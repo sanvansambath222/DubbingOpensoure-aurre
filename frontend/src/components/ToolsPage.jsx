@@ -903,15 +903,21 @@ const RemoveLogoTool = ({ token, d }) => {
       {/* Step 3: Controls row */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5 items-start">
         <Select label="Removal Method" value={mode} onChange={setMode} d={d} options={[
-          { value: "blur", label: "Blur (Heavy Blur Over Area)" },
+          { value: "blur", label: "Strong Blur (Heavy, hides any logo)" },
+          { value: "mosaic", label: "Mosaic (Pixelate area)" },
+          { value: "black", label: "Black Box (Cover with black)" },
+          { value: "colorfill", label: "Color Fill (Fill with nearby color)" },
           { value: "delogo", label: "Delogo (FFmpeg Smart Fill)" },
         ]} />
         <div className={`rounded-xl p-4 ${d?'bg-zinc-800/40 border border-zinc-700/40':'bg-amber-50 border border-amber-200'}`}>
           <div className="flex gap-2.5 items-start">
             <Info className={`w-5 h-5 mt-0.5 flex-shrink-0 ${d?'text-amber-400':'text-amber-600'}`} />
             <p className={`text-sm leading-relaxed ${d?'text-zinc-400':'text-amber-800'}`}>
-              <strong>Blur</strong> = cover with heavy blur (any logo).<br/>
-              <strong>Delogo</strong> = smart fill (simple backgrounds).
+              <strong>Strong Blur</strong> = best for any logo<br/>
+              <strong>Mosaic</strong> = pixelate like censoring<br/>
+              <strong>Black Box</strong> = 100% hidden<br/>
+              <strong>Color Fill</strong> = fill with nearby color<br/>
+              <strong>Delogo</strong> = smart fill (simple bg only)
             </p>
           </div>
         </div>
