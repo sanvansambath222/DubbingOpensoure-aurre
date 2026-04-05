@@ -91,9 +91,11 @@ export const ProcessingOverlay = ({ message, isDark, progressInfo, onClose }) =>
               className={`mt-4 px-6 py-2 rounded-sm text-sm font-semibold transition-colors ${
                 isError 
                   ? 'bg-red-600 text-white hover:bg-red-500'
-                  : d?'bg-emerald-600 text-white hover:bg-emerald-500':'bg-zinc-950 text-white hover:bg-zinc-800'
+                  : progressInfo?.step === 'sent_telegram'
+                    ? 'bg-emerald-600 text-white hover:bg-emerald-500'
+                    : d?'bg-emerald-600 text-white hover:bg-emerald-500':'bg-zinc-950 text-white hover:bg-zinc-800'
               }`}>
-              {isError ? "Close" : "Done"}
+              {isError ? "Close" : progressInfo?.step === 'sent_telegram' ? "Check Telegram!" : "Done"}
             </button>
           )}
           {!showCloseBtn && (
