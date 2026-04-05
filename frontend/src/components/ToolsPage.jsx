@@ -774,7 +774,7 @@ const RemoveLogoTool = ({ token, d }) => {
   const [video, setVideo] = useState(null);
   const [videoPreview, setVideoPreview] = useState(null);
   const [videoDims, setVideoDims] = useState({ w: 1920, h: 1080 });
-  const [selection, setSelection] = useState({ x: 5, y: 3, w: 12, h: 6 });
+  const [selection, setSelection] = useState({ x: 0, y: 0, w: 0, h: 0 });
   const [mode, setMode] = useState("blur");
   const [processing, setProcessing] = useState(false);
   const [result, setResult] = useState(null);
@@ -847,60 +847,67 @@ const RemoveLogoTool = ({ token, d }) => {
   };
 
   return (
-    <div className="space-y-5" onMouseMove={onMouseMove} onMouseUp={onMouseUp} onMouseLeave={onMouseUp} onTouchMove={onMouseMove} onTouchEnd={onMouseUp}>
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        <div className="lg:col-span-2">
-          <div className={`rounded-xl overflow-hidden border ${d?'border-zinc-700/50':'border-zinc-200'}`}>
-            <div className={`flex items-center justify-between px-4 py-2.5 ${d?'bg-zinc-800/60':'bg-zinc-100/80'}`}>
-              <span className={`text-[10px] font-bold uppercase tracking-[0.15em] ${d?'text-zinc-400':'text-zinc-500'}`}>Draw box around logo to remove</span>
-              <span className={`text-[10px] font-mono ${d?'text-zinc-500':'text-zinc-400'}`}>
-                {selection.w > 0 ? `${Math.round(selection.x)}%,${Math.round(selection.y)}% — ${Math.round(selection.w)}x${Math.round(selection.h)}%` : 'Click & drag'}
-              </span>
+    <div className="space-y-6" onMouseMove={onMouseMove} onMouseUp={onMouseUp} onMouseLeave={onMouseUp} onTouchMove={onMouseMove} onTouchEnd={onMouseUp}>
+      {/* Step 1: Upload */}
+      <DropZone accept="video/*" label="Upload Video" icon={FileVideo} file={video} onFile={onVideoSelect} d={d} />
+
+      {/* Step 2: Big Canvas — full width */}
+      <div className={`rounded-2xl overflow-hidden border-2 ${d?'border-zinc-700/60':'border-zinc-300'}`}>
+        <div className={`flex items-center justify-between px-5 py-3 ${d?'bg-zinc-800/70':'bg-zinc-100'}`}>
+          <span className={`text-xs font-bold uppercase tracking-[0.15em] ${d?'text-zinc-300':'text-zinc-600'}`}>
+            {videoPreview ? 'Click & drag to select logo area' : 'Upload video first, then draw box around logo'}
+          </span>
+          <span className={`text-xs font-mono ${d?'text-rose-400':'text-rose-600'}`}>
+            {selection.w > 0 ? `${Math.round(selection.x)}%, ${Math.round(selection.y)}%  —  ${Math.round(selection.w)} x ${Math.round(selection.h)}%` : 'No selection'}
+          </span>
+        </div>
+        <div ref={canvasRef}
+          onMouseDown={onMouseDown} onTouchStart={onMouseDown}
+          className={`relative w-full ${d?'bg-zinc-900':'bg-zinc-950'}`}
+          style={{ minHeight: '420px', aspectRatio: '16/9', cursor: 'crosshair', userSelect: 'none', touchAction: 'none' }}>
+          {videoPreview ? (
+            <video ref={videoRef} src={videoPreview} muted className="w-full h-full object-contain pointer-events-none" />
+          ) : (
+            <div className="w-full h-full flex flex-col items-center justify-center gap-3">
+              <FileVideo className={`w-16 h-16 ${d?'text-zinc-700':'text-zinc-600'}`} />
+              <span className={`text-base ${d?'text-zinc-500':'text-zinc-500'}`}>Upload video to select logo area</span>
+              <span className={`text-sm ${d?'text-zinc-600':'text-zinc-400'}`}>Then click & drag a box around the logo</span>
             </div>
-            <div ref={canvasRef}
-              onMouseDown={onMouseDown} onTouchStart={onMouseDown}
-              className={`relative w-full ${d?'bg-zinc-900':'bg-zinc-950'}`}
-              style={{ aspectRatio: '16/9', cursor: drawing ? 'crosshair' : 'crosshair', userSelect: 'none', touchAction: 'none' }}>
-              {videoPreview ? (
-                <video ref={videoRef} src={videoPreview} muted className="w-full h-full object-contain pointer-events-none" />
-              ) : (
-                <div className="w-full h-full flex flex-col items-center justify-center gap-2">
-                  <FileVideo className="w-8 h-8 text-zinc-700" />
-                  <span className="text-xs text-zinc-600">Upload video to select logo area</span>
-                </div>
-              )}
-              {selection.w > 0 && selection.h > 0 && (
-                <div data-testid="logo-selection-box"
-                  style={{
-                    position: 'absolute', left: `${selection.x}%`, top: `${selection.y}%`,
-                    width: `${selection.w}%`, height: `${selection.h}%`,
-                    border: '2px dashed #f43f5e', backgroundColor: 'rgba(244,63,94,0.15)',
-                    pointerEvents: 'none', zIndex: 10, borderRadius: '4px',
-                  }}>
-                  <div className="absolute -top-5 left-0 text-[9px] font-mono text-rose-400 bg-zinc-900/80 px-1.5 py-0.5 rounded">
-                    {Math.round(selection.w * videoDims.w / 100)}x{Math.round(selection.h * videoDims.h / 100)}px
-                  </div>
-                </div>
-              )}
-              <div className="absolute inset-0 pointer-events-none" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px)', backgroundSize: '10% 10%' }} />
+          )}
+          {selection.w > 0 && selection.h > 0 && (
+            <div data-testid="logo-selection-box"
+              style={{
+                position: 'absolute', left: `${selection.x}%`, top: `${selection.y}%`,
+                width: `${selection.w}%`, height: `${selection.h}%`,
+                border: '3px dashed #f43f5e', backgroundColor: 'rgba(244,63,94,0.18)',
+                pointerEvents: 'none', zIndex: 10, borderRadius: '6px',
+                boxShadow: '0 0 20px rgba(244,63,94,0.15)',
+              }}>
+              <div className="absolute -top-7 left-0 text-[11px] font-mono font-bold text-rose-400 bg-zinc-900/90 px-2 py-1 rounded-md">
+                {Math.round(selection.w * videoDims.w / 100)} x {Math.round(selection.h * videoDims.h / 100)} px
+              </div>
             </div>
+          )}
+          <div className="absolute inset-0 pointer-events-none" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px)', backgroundSize: '10% 10%' }} />
+        </div>
+      </div>
+
+      {/* Step 3: Controls row */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-5 items-start">
+        <Select label="Removal Method" value={mode} onChange={setMode} d={d} options={[
+          { value: "blur", label: "Blur (Heavy Blur Over Area)" },
+          { value: "delogo", label: "Delogo (FFmpeg Smart Fill)" },
+        ]} />
+        <div className={`rounded-xl p-4 ${d?'bg-zinc-800/40 border border-zinc-700/40':'bg-amber-50 border border-amber-200'}`}>
+          <div className="flex gap-2.5 items-start">
+            <Info className={`w-5 h-5 mt-0.5 flex-shrink-0 ${d?'text-amber-400':'text-amber-600'}`} />
+            <p className={`text-sm leading-relaxed ${d?'text-zinc-400':'text-amber-800'}`}>
+              <strong>Blur</strong> = cover with heavy blur (any logo).<br/>
+              <strong>Delogo</strong> = smart fill (simple backgrounds).
+            </p>
           </div>
         </div>
-        <div className="space-y-4">
-          <DropZone accept="video/*" label="Upload Video" icon={FileVideo} file={video} onFile={onVideoSelect} d={d} />
-          <Select label="Removal Method" value={mode} onChange={setMode} d={d} options={[
-            { value: "blur", label: "Blur (Heavy Blur Over Area)" },
-            { value: "delogo", label: "Delogo (FFmpeg Smart Fill)" },
-          ]} />
-          <div className={`rounded-xl p-3 ${d?'bg-zinc-800/40 border border-zinc-700/40':'bg-amber-50 border border-amber-200'}`}>
-            <div className="flex gap-2 items-start">
-              <Info className={`w-4 h-4 mt-0.5 flex-shrink-0 ${d?'text-amber-400':'text-amber-600'}`} />
-              <p className={`text-xs leading-relaxed ${d?'text-zinc-400':'text-amber-800'}`}>
-                <strong>Blur</strong> = cover with heavy blur (good for any logo).<br/>
-                <strong>Delogo</strong> = FFmpeg smart fill (better for simple backgrounds).
-              </p>
-            </div>
-          </div>
+        <div className="space-y-3">
           <ProcessBtn onClick={handleProcess} processing={processing} label="Remove Logo & Download" color="from-rose-500 to-red-600" d={d} />
           {result && <DownloadBtn url={result} label="Download Clean Video" d={d} />}
         </div>
