@@ -2494,8 +2494,51 @@ async def _generate_audio_sync(project_id, project, segments, speed, user, bg_vo
             {"project_id": project_id},
             {"$set": {"dubbed_audio_path": result["path"], "status": "audio_ready", "updated_at": datetime.now(timezone.utc).isoformat()}}
         )
-        # Update queue status to done
+        # Update queue status
         queue_status[project_id] = {"position": 0, "status": "done", "step": "done"}
+        
+        # Auto-generate video + send to Telegram (if video project and user has Telegram)
+        try:
+            user_doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0})
+            tg_chat_id = user_doc.get("telegram_chat_id") if user_doc else None
+            fresh_proj = strip_oid(await db.projects.find_one({"project_id": project_id}))
+            if tg_chat_id and fresh_proj and fresh_proj.get("file_type") == "video":
+                queue_status[project_id] = {"position": 0, "status": "processing", "step": "creating_video"}
+                output_data = assemble_dubbed_video(fresh_proj, False)
+                storage_path = f"{APP_NAME}/video/{user.user_id}/{project_id}/dubbed_{uuid.uuid4().hex}.mp4"
+                vid_result = put_object(storage_path, output_data, "video/mp4")
+                await db.projects.update_one(
+                    {"project_id": project_id},
+                    {"$set": {"dubbed_video_path": vid_result["path"], "status": "completed", "updated_at": datetime.now(timezone.utc).isoformat()}}
+                )
+                local_path = str(LOCAL_STORAGE_DIR / vid_result["path"])
+                title = fresh_proj.get("title", "Untitled")
+                src = fresh_proj.get("detected_language", "")
+                tgt = fresh_proj.get("target_language", "")
+                src_name = LANGUAGE_NAMES.get(src, src) if src else ""
+                tgt_name = LANGUAGE_NAMES.get(tgt, tgt) if tgt else ""
+                lang_line = f"\n{src_name} → {tgt_name}" if src_name and tgt_name else (f"\nDubbed to {tgt_name}" if tgt_name else "")
+                caption = f"Your dubbed video is ready!\n\nProject: {title}{lang_line}\n\nvoxidub.com"
+                sent = await send_telegram_video(tg_chat_id, local_path, caption, project_id)
+                if sent:
+                    logger.info(f"Auto-sent dubbed video to Telegram for {project_id}")
+                    # Auto-delete project files to save disk
+                    for key in ["original_file_path", "dubbed_audio_path", "dubbed_video_path", "extracted_audio_path"]:
+                        fp = fresh_proj.get(key)
+                        if fp:
+                            try: delete_object(fp)
+                            except: pass
+                    proj_dir = str(LOCAL_STORAGE_DIR / APP_NAME / "uploads" / user.user_id / project_id)
+                    if os.path.isdir(proj_dir):
+                        import shutil
+                        shutil.rmtree(proj_dir, ignore_errors=True)
+                    await db.projects.delete_one({"project_id": project_id})
+                    logger.info(f"Auto-deleted project {project_id} after Telegram send")
+                queue_status[project_id] = {"position": 0, "status": "done", "step": "sent_telegram"}
+        except Exception as e:
+            logger.warning(f"Auto video+Telegram failed: {e}")
+            queue_status[project_id] = {"position": 0, "status": "done", "step": "done"}
+        
         return await db.projects.find_one({"project_id": project_id}, {"_id": 0})
 
     except Exception as e:

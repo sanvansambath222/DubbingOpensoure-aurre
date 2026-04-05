@@ -27,8 +27,8 @@ export const StepProgress = ({ currentStep, steps, isDark }) => {
 export const ProcessingOverlay = ({ message, isDark, progressInfo, onClose }) => {
   const d = isDark;
   const fmtTime = (s) => { if (!s || s <= 0) return ""; const m = Math.floor(s / 60); const sec = Math.round(s % 60); return m > 0 ? `${m}m ${sec}s` : `${sec}s`; };
-  const stepLabels = { transcribing: "Detecting Speakers", translating: "Translating", generating_audio: "Generating Audio", generating_video: "Merging Video", starting: "Starting...", removing_vocals: "Removing Human Voice (AI)", mixing_audio: "Mixing Background Music", voices_ready: "Done! Review voices below.", waiting: "In Queue — Please Wait" };
-  const isDone = progressInfo?.status === 'done' || progressInfo?.step === 'voices_ready';
+  const stepLabels = { transcribing: "Detecting Speakers", translating: "Translating", generating_audio: "Generating Audio", generating_video: "Merging Video", creating_video: "Creating Video & Sending to Telegram...", sent_telegram: "Sent to Telegram!", starting: "Starting...", removing_vocals: "Removing Human Voice (AI)", mixing_audio: "Mixing Background Music", voices_ready: "Done! Review voices below.", waiting: "In Queue — Please Wait" };
+  const isDone = progressInfo?.status === 'done' || progressInfo?.step === 'voices_ready' || progressInfo?.step === 'sent_telegram';
   const isError = progressInfo?.status === 'error' || progressInfo?.step === 'error';
   const isQueued = progressInfo?.status === 'queued' || progressInfo?.step === 'waiting';
   const showCloseBtn = isDone || isError;
