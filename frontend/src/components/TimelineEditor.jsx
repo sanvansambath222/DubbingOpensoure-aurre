@@ -1,16 +1,26 @@
 import { useRef, useState, useEffect, useCallback, useMemo } from "react";
 import {
   GenderMale, GenderFemale, MagnifyingGlassPlus, MagnifyingGlassMinus,
-  Waveform, FloppyDisk, ArrowsHorizontal, ArrowCounterClockwise, Play, Pause, Stop
+  Waveform, FloppyDisk, ArrowsHorizontal, ArrowCounterClockwise,
+  Play, Pause, Stop, DotsSixVertical, Clock, SpeakerHigh
 } from "@phosphor-icons/react";
 
-const MIN_ZOOM = 5;
-const MAX_ZOOM = 100;
-const TRACK_HEIGHT = 44;
-const RULER_HEIGHT = 30;
-const LABEL_WIDTH = 56;
+const MIN_ZOOM = 8;
+const MAX_ZOOM = 120;
+const TRACK_HEIGHT = 64;
+const RULER_HEIGHT = 38;
+const LABEL_WIDTH = 90;
+const BLOCK_MARGIN = 6;
 
 const formatTime = (sec) => {
+  if (sec < 0) sec = 0;
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60);
+  const ms = Math.floor((sec % 1) * 10);
+  return m > 0 ? `${m}:${String(s).padStart(2, '0')}.${ms}` : `0:${String(s).padStart(2, '0')}.${ms}`;
+};
+
+const formatShort = (sec) => {
   if (sec < 0) sec = 0;
   const m = Math.floor(sec / 60);
   const s = Math.floor(sec % 60);
@@ -24,9 +34,10 @@ const TimelineEditor = ({
 }) => {
   const d = isDark;
   const containerRef = useRef(null);
-  const [zoom, setZoom] = useState(20);
+  const [zoom, setZoom] = useState(30);
   const [dragging, setDragging] = useState(null);
   const [offsets, setOffsets] = useState({});
+  const [hoveredSeg, setHoveredSeg] = useState(null);
   const hasChanges = Object.values(offsets).some(v => v !== 0);
 
   const duration = useMemo(() => {
@@ -44,7 +55,6 @@ const TimelineEditor = ({
     [actors, segments]
   );
 
-  // Init offsets from segment data
   useEffect(() => {
     const init = {};
     segments.forEach((seg, idx) => {
@@ -56,14 +66,13 @@ const TimelineEditor = ({
   }, [segments]);
 
   const getTickInterval = useCallback(() => {
-    if (zoom >= 60) return 1;
-    if (zoom >= 30) return 2;
-    if (zoom >= 15) return 5;
-    if (zoom >= 8) return 10;
+    if (zoom >= 80) return 1;
+    if (zoom >= 40) return 2;
+    if (zoom >= 20) return 5;
+    if (zoom >= 10) return 10;
     return 30;
   }, [zoom]);
 
-  // Drag handlers
   const handleMouseDown = (e, segIdx) => {
     e.preventDefault();
     e.stopPropagation();
@@ -76,7 +85,6 @@ const TimelineEditor = ({
     const deltaSec = deltaX / zoom;
     const seg = segments[dragging.segIdx];
     const newOffset = dragging.originalOffset + deltaSec;
-    // Don't allow dragging before 0
     const minOffset = -(seg.start || 0);
     const clampedOffset = Math.max(minOffset, newOffset);
     setOffsets(prev => ({ ...prev, [dragging.segIdx]: Math.round(clampedOffset * 10) / 10 }));
@@ -117,107 +125,135 @@ const TimelineEditor = ({
   };
 
   const playheadX = (videoCurrentTime || 0) * zoom + LABEL_WIDTH;
-  const totalHeight = (tracks.length + 1) * TRACK_HEIGHT + RULER_HEIGHT + 12;
+  const totalHeight = (tracks.length + 1) * TRACK_HEIGHT + RULER_HEIGHT + 16;
 
-  // Auto-scroll to keep playhead visible while playing
   useEffect(() => {
     if (!isPlaying || !containerRef.current) return;
     const container = containerRef.current;
     const scrollLeft = container.scrollLeft;
     const viewWidth = container.clientWidth;
-    if (playheadX < scrollLeft + LABEL_WIDTH + 20 || playheadX > scrollLeft + viewWidth - 40) {
+    if (playheadX < scrollLeft + LABEL_WIDTH + 40 || playheadX > scrollLeft + viewWidth - 60) {
       container.scrollLeft = Math.max(0, playheadX - viewWidth * 0.3);
     }
   }, [playheadX, isPlaying]);
 
+  const changedCount = Object.values(offsets).filter(v => v !== 0).length;
+
   return (
-    <div className={`border-b select-none ${d ? 'bg-zinc-950/60 border-zinc-800' : 'bg-zinc-50 border-black/8'}`} data-testid="timeline-editor">
-      {/* Controls */}
-      <div className={`flex items-center gap-3 px-4 py-2 border-b ${d ? 'border-zinc-800/60' : 'border-black/5'}`}>
-        <div className="flex items-center gap-1.5">
-          <ArrowsHorizontal className={`w-3.5 h-3.5 ${d ? 'text-cyan-400' : 'text-cyan-600'}`} weight="bold" />
-          <span className={`text-[10px] font-bold uppercase tracking-widest ${d ? 'text-zinc-400' : 'text-zinc-500'}`}>
-            Timeline
-          </span>
+    <div className={`select-none ${d ? 'bg-zinc-950' : 'bg-white'}`} data-testid="timeline-editor">
+      {/* Top Control Bar */}
+      <div className={`flex items-center gap-2 px-5 py-3 border-b ${d ? 'border-zinc-800 bg-zinc-900/80' : 'border-zinc-200 bg-zinc-50/80'}`}>
+        {/* Left: Label + Transport */}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5">
+            <ArrowsHorizontal className={`w-4 h-4 ${d ? 'text-cyan-400' : 'text-cyan-600'}`} weight="bold" />
+            <span className={`text-xs font-bold uppercase tracking-wider ${d ? 'text-zinc-300' : 'text-zinc-700'}`}>
+              Timeline
+            </span>
+          </div>
+
+          {/* Transport controls */}
+          <div className={`flex items-center gap-1 px-2 py-1 rounded-lg ${d ? 'bg-zinc-800' : 'bg-zinc-100'}`}>
+            <button onClick={onStop} data-testid="timeline-stop-btn"
+              className={`w-8 h-8 rounded-md flex items-center justify-center transition-all ${d ? 'text-zinc-400 hover:bg-zinc-700 hover:text-white' : 'text-zinc-500 hover:bg-zinc-200 hover:text-zinc-800'}`}>
+              <Stop className="w-4 h-4" weight="fill" />
+            </button>
+            <button onClick={onPlayPause} data-testid="timeline-play-btn"
+              className={`w-10 h-8 rounded-md flex items-center justify-center transition-all font-bold ${
+                isPlaying
+                  ? (d ? 'bg-amber-500/25 text-amber-300 hover:bg-amber-500/35' : 'bg-amber-100 text-amber-600 hover:bg-amber-200')
+                  : (d ? 'bg-emerald-500/25 text-emerald-300 hover:bg-emerald-500/35' : 'bg-emerald-100 text-emerald-600 hover:bg-emerald-200')
+              }`}>
+              {isPlaying
+                ? <Pause className="w-4.5 h-4.5" weight="fill" />
+                : <Play className="w-4.5 h-4.5" weight="fill" />}
+            </button>
+          </div>
+
+          {/* Time display */}
+          <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-mono ${d ? 'bg-zinc-800 text-zinc-200' : 'bg-zinc-100 text-zinc-700'}`}>
+            <Clock className="w-3.5 h-3.5 opacity-50" />
+            <span className="text-sm font-bold tabular-nums tracking-tight">
+              {formatTime(videoCurrentTime || 0)}
+            </span>
+            {totalDuration > 0 && (
+              <span className={`text-[10px] opacity-40 ml-1`}>/ {formatShort(duration)}</span>
+            )}
+          </div>
         </div>
 
-        {/* Play / Pause / Stop */}
-        <div className="flex items-center gap-0.5 ml-2">
-          <button onClick={onPlayPause} data-testid="timeline-play-btn"
-            className={`w-7 h-7 rounded-md flex items-center justify-center transition-all ${
-              isPlaying
-                ? (d ? 'bg-amber-500/20 text-amber-400 hover:bg-amber-500/30' : 'bg-amber-100 text-amber-600 hover:bg-amber-200')
-                : (d ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30' : 'bg-emerald-100 text-emerald-600 hover:bg-emerald-200')
-            }`}>
-            {isPlaying
-              ? <Pause className="w-3.5 h-3.5" weight="fill" />
-              : <Play className="w-3.5 h-3.5" weight="fill" />}
-          </button>
-          <button onClick={onStop} data-testid="timeline-stop-btn"
-            className={`w-7 h-7 rounded-md flex items-center justify-center transition-all ${d ? 'text-zinc-500 hover:bg-zinc-700 hover:text-zinc-300' : 'text-zinc-400 hover:bg-zinc-200 hover:text-zinc-600'}`}>
-            <Stop className="w-3.5 h-3.5" weight="fill" />
-          </button>
-          <span className={`text-[10px] font-mono ml-1 tabular-nums ${d ? 'text-zinc-300' : 'text-zinc-600'}`}>
-            {formatTime(videoCurrentTime || 0)}
-          </span>
-        </div>
-
-        <div className="flex items-center gap-0.5 ml-3">
+        {/* Center: Zoom */}
+        <div className="flex items-center gap-1 ml-6">
           <button onClick={() => setZoom(z => Math.max(MIN_ZOOM, z - 5))} data-testid="timeline-zoom-out"
-            className={`p-1 rounded transition-colors ${d ? 'hover:bg-zinc-700 text-zinc-500' : 'hover:bg-zinc-200 text-zinc-400'}`}>
-            <MagnifyingGlassMinus className="w-3.5 h-3.5" />
+            className={`w-7 h-7 rounded-md flex items-center justify-center transition-colors ${d ? 'hover:bg-zinc-700 text-zinc-400' : 'hover:bg-zinc-200 text-zinc-500'}`}>
+            <MagnifyingGlassMinus className="w-4 h-4" />
           </button>
-          <div className={`w-16 h-1 rounded-full mx-1 relative ${d ? 'bg-zinc-700' : 'bg-zinc-200'}`}>
-            <div className={`h-full rounded-full ${d ? 'bg-cyan-500/50' : 'bg-cyan-400/50'}`}
+          <div className={`w-24 h-1.5 rounded-full mx-1 relative cursor-pointer ${d ? 'bg-zinc-700' : 'bg-zinc-200'}`}
+            onClick={(e) => {
+              const rect = e.currentTarget.getBoundingClientRect();
+              const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+              setZoom(Math.round(MIN_ZOOM + pct * (MAX_ZOOM - MIN_ZOOM)));
+            }}>
+            <div className={`h-full rounded-full transition-all ${d ? 'bg-cyan-500/60' : 'bg-cyan-400/60'}`}
               style={{ width: `${((zoom - MIN_ZOOM) / (MAX_ZOOM - MIN_ZOOM)) * 100}%` }} />
+            <div className={`absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full shadow border-2 ${d ? 'bg-cyan-400 border-zinc-800' : 'bg-cyan-500 border-white'}`}
+              style={{ left: `calc(${((zoom - MIN_ZOOM) / (MAX_ZOOM - MIN_ZOOM)) * 100}% - 6px)` }} />
           </div>
           <button onClick={() => setZoom(z => Math.min(MAX_ZOOM, z + 5))} data-testid="timeline-zoom-in"
-            className={`p-1 rounded transition-colors ${d ? 'hover:bg-zinc-700 text-zinc-500' : 'hover:bg-zinc-200 text-zinc-400'}`}>
-            <MagnifyingGlassPlus className="w-3.5 h-3.5" />
+            className={`w-7 h-7 rounded-md flex items-center justify-center transition-colors ${d ? 'hover:bg-zinc-700 text-zinc-400' : 'hover:bg-zinc-200 text-zinc-500'}`}>
+            <MagnifyingGlassPlus className="w-4 h-4" />
           </button>
-          <span className={`text-[8px] font-mono ml-1 ${d ? 'text-zinc-600' : 'text-zinc-400'}`}>{zoom}px/s</span>
+          <span className={`text-[9px] font-mono ml-1.5 ${d ? 'text-zinc-600' : 'text-zinc-400'}`}>{zoom}px/s</span>
         </div>
 
-        <div className="flex items-center gap-1.5 ml-auto">
+        {/* Right: Actions */}
+        <div className="flex items-center gap-2 ml-auto">
+          {hasChanges && (
+            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${d ? 'bg-amber-900/30 text-amber-400' : 'bg-amber-50 text-amber-600'}`}>
+              {changedCount} changed
+            </span>
+          )}
           {hasChanges && (
             <button onClick={resetOffsets} data-testid="timeline-reset-btn"
-              className={`px-2 py-1 text-[9px] font-semibold rounded flex items-center gap-1 transition-colors ${d ? 'text-zinc-400 hover:text-white hover:bg-zinc-700' : 'text-zinc-500 hover:text-zinc-800 hover:bg-zinc-200'}`}>
-              <ArrowCounterClockwise className="w-3 h-3" /> Reset
+              className={`px-3 py-1.5 text-[11px] font-semibold rounded-md flex items-center gap-1.5 transition-colors border ${d ? 'text-zinc-300 border-zinc-700 hover:bg-zinc-800' : 'text-zinc-600 border-zinc-300 hover:bg-zinc-100'}`}>
+              <ArrowCounterClockwise className="w-3.5 h-3.5" /> Reset All
             </button>
           )}
           <button onClick={() => onSaveOffsets?.(offsets)} data-testid="timeline-save-btn"
-            className={`px-3 py-1 text-[10px] font-bold rounded flex items-center gap-1 transition-all ${
+            className={`px-4 py-1.5 text-[11px] font-bold rounded-md flex items-center gap-1.5 transition-all shadow-sm ${
               hasChanges
-                ? (d ? 'bg-emerald-600 text-white hover:bg-emerald-500' : 'bg-emerald-600 text-white hover:bg-emerald-500')
+                ? 'bg-emerald-600 text-white hover:bg-emerald-500 shadow-emerald-500/20'
                 : (d ? 'bg-zinc-800 text-zinc-500 border border-zinc-700' : 'bg-zinc-100 text-zinc-400 border border-zinc-200')
             }`}>
-            <FloppyDisk className="w-3 h-3" /> Save Timeline
+            <FloppyDisk className="w-3.5 h-3.5" /> Save Timeline
           </button>
         </div>
       </div>
 
       {/* Timeline Canvas */}
-      <div ref={containerRef} className="overflow-x-auto overflow-y-hidden relative"
-        style={{ maxHeight: totalHeight + 4 }}>
-        <div style={{ width: timelineWidth + LABEL_WIDTH + 40, height: totalHeight }}
+      <div ref={containerRef} className={`overflow-x-auto overflow-y-hidden relative border-b ${d ? 'border-zinc-800' : 'border-zinc-200'}`}
+        style={{ height: totalHeight + 4 }}>
+        <div style={{ width: timelineWidth + LABEL_WIDTH + 60, minHeight: totalHeight }}
           className="relative" onClick={handleTimelineClick}>
 
           {/* Ruler */}
-          <div className={`sticky top-0 z-20 border-b ${d ? 'bg-zinc-900/95 border-zinc-700/50' : 'bg-white/95 border-zinc-200'}`}
+          <div className={`sticky top-0 z-20 border-b ${d ? 'bg-zinc-900 border-zinc-700/60' : 'bg-zinc-50 border-zinc-200'}`}
             style={{ height: RULER_HEIGHT }}>
+            {/* Label spacer */}
+            <div className={`absolute left-0 top-0 bottom-0 z-10 ${d ? 'bg-zinc-900' : 'bg-zinc-50'}`} style={{ width: LABEL_WIDTH }} />
             {(() => {
               const interval = getTickInterval();
               const ticks = [];
               for (let t = 0; t <= duration; t += interval) {
                 const x = t * zoom + LABEL_WIDTH;
-                const isMajor = t % (interval * 5) === 0 || interval >= 10;
+                const isMajor = t % (interval * (interval >= 10 ? 3 : 5)) === 0 || interval >= 10;
                 ticks.push(
-                  <div key={t} className="absolute top-0" style={{ left: x }}>
-                    <div className={`w-px ${isMajor ? 'h-4' : 'h-2.5'} ${d ? 'bg-zinc-600' : 'bg-zinc-300'}`} />
+                  <div key={t} className="absolute" style={{ left: x, top: 0, height: '100%' }}>
+                    <div className={`w-px ${isMajor ? 'h-5' : 'h-3'} ${d ? (isMajor ? 'bg-zinc-500' : 'bg-zinc-700') : (isMajor ? 'bg-zinc-400' : 'bg-zinc-200')}`} />
                     {isMajor && (
-                      <span className={`absolute text-[7px] font-mono -translate-x-1/2 ${d ? 'text-zinc-500' : 'text-zinc-400'}`}
-                        style={{ top: isMajor ? 16 : 12 }}>
-                        {formatTime(t)}
+                      <span className={`absolute text-[9px] font-mono -translate-x-1/2 font-semibold ${d ? 'text-zinc-400' : 'text-zinc-500'}`}
+                        style={{ top: 20 }}>
+                        {formatShort(t)}
                       </span>
                     )}
                   </div>
@@ -230,25 +266,40 @@ const TimelineEditor = ({
           {/* Tracks */}
           {tracks.map((track, tIdx) => {
             const isMale = track.actor.gender === 'male';
-            const trackTop = RULER_HEIGHT + tIdx * TRACK_HEIGHT + 4;
+            const trackTop = RULER_HEIGHT + tIdx * TRACK_HEIGHT + 8;
             return (
               <div key={track.actor.id} className="absolute left-0 right-0"
                 style={{ top: trackTop, height: TRACK_HEIGHT }}
                 data-testid={`timeline-track-${track.actor.id}`}>
-                {/* Track bg stripe */}
-                <div className={`absolute inset-0 ${tIdx % 2 === 0 ? (d ? 'bg-zinc-900/30' : 'bg-zinc-50/50') : ''}`} />
+                {/* Track bg */}
+                <div className={`absolute inset-0 ${
+                  tIdx % 2 === 0
+                    ? (d ? 'bg-zinc-900/40' : 'bg-zinc-50/80')
+                    : (d ? 'bg-zinc-900/20' : 'bg-white/60')
+                }`} />
+                {/* Subtle grid lines */}
+                <div className={`absolute bottom-0 left-0 right-0 h-px ${d ? 'bg-zinc-800/50' : 'bg-zinc-100'}`} />
 
                 {/* Track label */}
-                <div className={`absolute left-0 top-0 bottom-0 flex flex-col items-center justify-center z-10 ${d ? 'bg-zinc-900/90' : 'bg-white/90'}`}
+                <div className={`absolute left-0 top-0 bottom-0 flex items-center gap-2 px-2 z-10 ${d ? 'bg-zinc-900/95' : 'bg-white/95'}`}
                   style={{ width: LABEL_WIDTH }}>
-                  <div className={`w-6 h-6 rounded-md flex items-center justify-center ${isMale ? 'bg-blue-500/15' : 'bg-pink-500/15'}`}>
+                  <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                    isMale
+                      ? (d ? 'bg-blue-500/20 ring-1 ring-blue-500/30' : 'bg-blue-100 ring-1 ring-blue-200')
+                      : (d ? 'bg-pink-500/20 ring-1 ring-pink-500/30' : 'bg-pink-100 ring-1 ring-pink-200')
+                  }`}>
                     {isMale
-                      ? <GenderMale className="w-3 h-3 text-blue-500" weight="bold" />
-                      : <GenderFemale className="w-3 h-3 text-pink-500" weight="bold" />}
+                      ? <GenderMale className="w-4.5 h-4.5 text-blue-500" weight="bold" />
+                      : <GenderFemale className="w-4.5 h-4.5 text-pink-500" weight="bold" />}
                   </div>
-                  <span className={`text-[7px] font-bold mt-0.5 truncate max-w-[50px] ${d ? 'text-zinc-500' : 'text-zinc-400'}`}>
-                    {track.actor.label || track.actor.id}
-                  </span>
+                  <div className="min-w-0">
+                    <p className={`text-[10px] font-bold truncate leading-tight ${d ? 'text-zinc-300' : 'text-zinc-700'}`}>
+                      {track.actor.label || track.actor.id}
+                    </p>
+                    <p className={`text-[8px] font-semibold uppercase ${isMale ? 'text-blue-500' : 'text-pink-500'}`}>
+                      {isMale ? 'Boy' : 'Girl'}
+                    </p>
+                  </div>
                 </div>
 
                 {/* Segments */}
@@ -257,46 +308,68 @@ const TimelineEditor = ({
                   const start = (seg.start || 0) + offset;
                   const segDur = (seg.end || 0) - (seg.start || 0);
                   const left = Math.max(0, start * zoom) + LABEL_WIDTH;
-                  const width = Math.max(segDur * zoom, 8);
+                  const width = Math.max(segDur * zoom, 16);
                   const isDraggingThis = dragging?.segIdx === seg._idx;
+                  const isHovered = hoveredSeg === seg._idx;
 
                   return (
                     <div
                       key={seg._idx}
                       data-testid={`timeline-block-${seg._idx}`}
                       onMouseDown={(e) => handleMouseDown(e, seg._idx)}
+                      onMouseEnter={() => setHoveredSeg(seg._idx)}
+                      onMouseLeave={() => setHoveredSeg(null)}
                       onClick={(e) => { e.stopPropagation(); onSeekVideo?.(seg.start || 0); }}
-                      title={`${seg.translated || seg.original || 'Segment ' + (seg._idx + 1)}\n${formatTime(seg.start || 0)} → ${formatTime(seg.end || 0)}${offset ? ` (${offset > 0 ? '+' : ''}${offset.toFixed(1)}s)` : ''}`}
-                      className={`absolute rounded-md cursor-grab active:cursor-grabbing flex items-center px-1.5 overflow-hidden border transition-all ${
+                      title={`${seg.translated || seg.original || 'Segment ' + (seg._idx + 1)}\n${formatShort(seg.start || 0)} → ${formatShort(seg.end || 0)} (${segDur.toFixed(1)}s)${offset ? `\nOffset: ${offset > 0 ? '+' : ''}${offset.toFixed(1)}s` : ''}`}
+                      className={`absolute rounded-lg cursor-grab active:cursor-grabbing flex items-center gap-1 overflow-hidden border-2 transition-all ${
                         isDraggingThis
-                          ? 'ring-2 shadow-xl z-30 scale-[1.03]'
-                          : 'hover:shadow-lg hover:brightness-110 z-10'
+                          ? 'ring-2 ring-offset-1 shadow-2xl z-30 scale-[1.02]'
+                          : isHovered
+                            ? 'shadow-xl z-20 brightness-110'
+                            : 'shadow-md z-10 hover:shadow-lg'
                       } ${
                         isMale
-                          ? `bg-blue-500 border-blue-400/50 text-white ${isDraggingThis ? 'ring-blue-300' : ''}`
-                          : `bg-pink-500 border-pink-400/50 text-white ${isDraggingThis ? 'ring-pink-300' : ''}`
+                          ? `border-blue-400/60 text-white ${isDraggingThis ? 'ring-blue-300 bg-blue-500' : 'bg-blue-500/90'}`
+                          : `border-pink-400/60 text-white ${isDraggingThis ? 'ring-pink-300 bg-pink-500' : 'bg-pink-500/90'}`
                       }`}
                       style={{
                         left,
                         width,
-                        top: 4,
-                        height: TRACK_HEIGHT - 10,
+                        top: BLOCK_MARGIN,
+                        height: TRACK_HEIGHT - BLOCK_MARGIN * 2 - 2,
+                        ...(isDraggingThis ? { ringOffsetColor: d ? '#09090b' : '#fff' } : {}),
                       }}>
-                      {width > 30 && (
-                        <span className="text-[8px] font-semibold truncate whitespace-nowrap opacity-90">
-                          {seg.translated || seg.original || `#${seg._idx + 1}`}
-                        </span>
-                      )}
-                      {offset !== 0 && width > 50 && (
-                        <span className="text-[7px] opacity-60 ml-auto flex-shrink-0 font-mono">
-                          {offset > 0 ? '+' : ''}{offset.toFixed(1)}s
-                        </span>
-                      )}
-                      {/* Drag grip lines */}
-                      <div className="absolute right-0.5 top-1/2 -translate-y-1/2 flex flex-col gap-[2px] opacity-40">
-                        <div className="w-1 h-px bg-white" />
-                        <div className="w-1 h-px bg-white" />
-                        <div className="w-1 h-px bg-white" />
+                      {/* Drag handle left */}
+                      <div className={`flex-shrink-0 flex items-center justify-center w-5 h-full opacity-40 hover:opacity-80 ${isDraggingThis ? 'opacity-80' : ''}`}>
+                        <DotsSixVertical className="w-3.5 h-3.5" weight="bold" />
+                      </div>
+                      {/* Content */}
+                      <div className="flex-1 min-w-0 flex flex-col justify-center pr-1.5">
+                        {width > 50 && (
+                          <span className="text-[10px] font-semibold truncate whitespace-nowrap leading-tight">
+                            {seg.translated || seg.original || `#${seg._idx + 1}`}
+                          </span>
+                        )}
+                        <div className="flex items-center gap-1.5">
+                          {width > 40 && (
+                            <span className="text-[8px] opacity-60 font-mono">
+                              {segDur.toFixed(1)}s
+                            </span>
+                          )}
+                          {offset !== 0 && width > 60 && (
+                            <span className={`text-[8px] font-mono font-bold px-1 py-px rounded ${
+                              offset > 0
+                                ? 'bg-white/20 text-green-200'
+                                : 'bg-white/20 text-amber-200'
+                            }`}>
+                              {offset > 0 ? '+' : ''}{offset.toFixed(1)}s
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      {/* Drag handle right */}
+                      <div className={`flex-shrink-0 flex items-center justify-center w-4 h-full opacity-30 hover:opacity-70`}>
+                        <DotsSixVertical className="w-3 h-3" weight="bold" />
                       </div>
                     </div>
                   );
@@ -307,41 +380,85 @@ const TimelineEditor = ({
 
           {/* Background Audio Track */}
           {(() => {
-            const bgTop = RULER_HEIGHT + tracks.length * TRACK_HEIGHT + 4;
+            const bgTop = RULER_HEIGHT + tracks.length * TRACK_HEIGHT + 8;
             return (
               <div className="absolute left-0 right-0" style={{ top: bgTop, height: TRACK_HEIGHT }}
                 data-testid="timeline-bg-track">
-                <div className={`absolute left-0 top-0 bottom-0 flex flex-col items-center justify-center z-10 ${d ? 'bg-zinc-900/90' : 'bg-white/90'}`}
+                <div className={`absolute inset-0 ${d ? 'bg-zinc-900/20' : 'bg-amber-50/30'}`} />
+                {/* Label */}
+                <div className={`absolute left-0 top-0 bottom-0 flex items-center gap-2 px-2 z-10 ${d ? 'bg-zinc-900/95' : 'bg-white/95'}`}
                   style={{ width: LABEL_WIDTH }}>
-                  <div className={`w-6 h-6 rounded-md flex items-center justify-center transition-colors ${isPlaying ? 'bg-amber-500/30 animate-pulse' : 'bg-amber-500/15'}`}>
-                    <Waveform className={`w-3 h-3 ${isPlaying ? 'text-amber-400' : 'text-amber-500'}`} weight="bold" />
+                  <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors ${
+                    isPlaying
+                      ? (d ? 'bg-amber-500/30 ring-1 ring-amber-400/40 animate-pulse' : 'bg-amber-200 ring-1 ring-amber-300 animate-pulse')
+                      : (d ? 'bg-amber-500/15 ring-1 ring-amber-500/20' : 'bg-amber-100 ring-1 ring-amber-200')
+                  }`}>
+                    {isPlaying
+                      ? <SpeakerHigh className="w-4 h-4 text-amber-500" weight="fill" />
+                      : <Waveform className="w-4 h-4 text-amber-500" weight="bold" />}
                   </div>
-                  <span className={`text-[7px] font-bold mt-0.5 ${isPlaying ? (d ? 'text-amber-400' : 'text-amber-600') : (d ? 'text-zinc-500' : 'text-zinc-400')}`}>
-                    {isPlaying ? 'Playing' : 'BG'}
-                  </span>
+                  <div className="min-w-0">
+                    <p className={`text-[10px] font-bold truncate leading-tight ${isPlaying ? (d ? 'text-amber-300' : 'text-amber-700') : (d ? 'text-zinc-300' : 'text-zinc-600')}`}>
+                      {isPlaying ? 'Playing' : 'Background'}
+                    </p>
+                    <p className={`text-[8px] font-semibold uppercase text-amber-500`}>Music</p>
+                  </div>
                 </div>
-                {/* BG bar with fake waveform */}
-                <div className={`absolute rounded-md border ${d ? 'bg-amber-500/10 border-amber-500/20' : 'bg-amber-400/10 border-amber-400/20'}`}
-                  style={{ left: LABEL_WIDTH, width: Math.max(duration * zoom - 20, 100), top: 4, height: TRACK_HEIGHT - 10 }}>
-                  <div className="h-full flex items-center gap-px px-1 overflow-hidden">
-                    {Array.from({ length: Math.min(Math.floor(duration * zoom / 3), 300) }, (_, i) => (
-                      <div key={i} className={`w-[2px] flex-shrink-0 rounded-full ${d ? 'bg-amber-500/20' : 'bg-amber-400/25'}`}
-                        style={{ height: `${20 + Math.sin(i * 0.3) * 15 + Math.random() * 25}%` }} />
-                    ))}
+                {/* Waveform bar */}
+                <div className={`absolute rounded-lg border ${
+                  isPlaying
+                    ? (d ? 'bg-amber-500/12 border-amber-500/30' : 'bg-amber-400/12 border-amber-400/30')
+                    : (d ? 'bg-amber-500/6 border-amber-500/15' : 'bg-amber-400/8 border-amber-400/15')
+                }`}
+                  style={{ left: LABEL_WIDTH, width: Math.max(duration * zoom - 20, 100), top: BLOCK_MARGIN, height: TRACK_HEIGHT - BLOCK_MARGIN * 2 - 2 }}>
+                  <div className="h-full flex items-center gap-[1px] px-2 overflow-hidden">
+                    {Array.from({ length: Math.min(Math.floor(duration * zoom / 3), 400) }, (_, i) => {
+                      const h = 15 + Math.sin(i * 0.25) * 12 + Math.sin(i * 0.7) * 8 + Math.sin(i * 1.3) * 5;
+                      return (
+                        <div key={i} className={`w-[2px] flex-shrink-0 rounded-full transition-colors ${
+                          isPlaying ? (d ? 'bg-amber-400/30' : 'bg-amber-500/25') : (d ? 'bg-amber-500/15' : 'bg-amber-400/18')
+                        }`}
+                          style={{ height: `${Math.max(8, Math.min(85, h))}%` }} />
+                      );
+                    })}
                   </div>
                 </div>
               </div>
             );
           })()}
 
-          {/* Playhead line */}
-          <div className={`absolute top-0 w-0.5 z-40 pointer-events-none transition-colors ${isPlaying ? 'bg-red-500' : 'bg-red-400/70'}`}
+          {/* Playhead */}
+          <div className={`absolute top-0 z-40 pointer-events-none`}
             style={{ left: playheadX, height: totalHeight }}
             data-testid="timeline-playhead">
-            <div className={`w-3 h-3 rounded-full absolute -left-[5px] -top-1 shadow-md transition-colors ${isPlaying ? 'bg-red-500' : 'bg-red-400/70'}`} />
+            {/* Line */}
+            <div className={`absolute left-0 top-0 w-[2px] h-full transition-colors ${isPlaying ? 'bg-red-500' : 'bg-red-400/60'}`} />
+            {/* Top triangle handle */}
+            <div className={`absolute -left-[7px] -top-0.5`}>
+              <div className={`w-4 h-5 flex items-start justify-center ${isPlaying ? 'text-red-500' : 'text-red-400/60'}`}>
+                <svg width="16" height="20" viewBox="0 0 16 20" fill="currentColor">
+                  <path d="M0 0h16v12l-8 8-8-8V0z" />
+                </svg>
+              </div>
+            </div>
           </div>
         </div>
       </div>
+
+      {/* Bottom hint */}
+      {hoveredSeg !== null && (
+        <div className={`px-5 py-1.5 text-[10px] flex items-center gap-3 ${d ? 'bg-zinc-900/50 text-zinc-400' : 'bg-zinc-50 text-zinc-500'}`}>
+          <span className="font-semibold">Segment {hoveredSeg + 1}</span>
+          <span>{formatShort(segments[hoveredSeg]?.start || 0)} → {formatShort(segments[hoveredSeg]?.end || 0)}</span>
+          <span className="font-mono">({((segments[hoveredSeg]?.end || 0) - (segments[hoveredSeg]?.start || 0)).toFixed(1)}s)</span>
+          {offsets[hoveredSeg] ? (
+            <span className={`font-bold ${offsets[hoveredSeg] > 0 ? 'text-emerald-500' : 'text-amber-500'}`}>
+              Offset: {offsets[hoveredSeg] > 0 ? '+' : ''}{offsets[hoveredSeg].toFixed(1)}s
+            </span>
+          ) : null}
+          <span className="ml-auto opacity-60">Drag left/right to adjust timing</span>
+        </div>
+      )}
     </div>
   );
 };
