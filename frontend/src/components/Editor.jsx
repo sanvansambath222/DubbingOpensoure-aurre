@@ -617,6 +617,16 @@ const Editor = () => {
     const text = seg?.translated || seg?.original;
     if (!text) { toast.error("No text to preview"); return; }
     setPreviewingIdx(idx);
+    
+    // Sync original video to segment start time
+    if (originalVideoRef.current && seg.start !== undefined) {
+      originalVideoRef.current.currentTime = seg.start;
+      originalVideoRef.current.play().catch(() => {});
+      // Pause video at segment end
+      const duration = ((seg.end || 0) - (seg.start || 0)) * 1000;
+      setTimeout(() => { if (originalVideoRef.current) originalVideoRef.current.pause(); }, duration);
+    }
+    
     try {
       const r = await axios.post(`${API}/projects/${projectId}/preview-tts`, 
         { text, gender: seg.gender || 'female', speed: ttsSpeed },
@@ -766,9 +776,9 @@ const Editor = () => {
             )}
 
             {originalVideoUrl && (
-              <div>
-                <label className="text-[10px] text-zinc-500 uppercase font-semibold tracking-wider mb-1.5 block">Original Video</label>
-                <video ref={originalVideoRef} src={originalVideoUrl} controls className="w-full rounded-sm bg-black" style={{ maxHeight: '200px' }} data-testid="original-video-preview" />
+              <div className="sticky top-0 z-20">
+                <label className="text-[10px] text-zinc-500 uppercase font-semibold tracking-wider mb-1.5 block">Original Video (click play on any line to sync)</label>
+                <video ref={originalVideoRef} src={originalVideoUrl} controls className="w-full rounded-lg bg-black shadow-lg" style={{ maxHeight: '280px' }} data-testid="original-video-preview" />
               </div>
             )}
 
@@ -1255,7 +1265,9 @@ const Editor = () => {
                           </div>
                         </td>
                         <td className="px-3 py-2.5 text-zinc-400 font-mono">{idx + 1}</td>
-                        <td className="px-3 py-2.5 text-zinc-500 font-mono">{fmt(seg.start || 0)}</td>
+                        <td className="px-3 py-2.5 text-zinc-500 font-mono cursor-pointer hover:text-blue-500 transition-colors" 
+                          onClick={() => { if (originalVideoRef.current && seg.start !== undefined) { originalVideoRef.current.currentTime = seg.start; originalVideoRef.current.play().catch(() => {}); } }}
+                          title="Click to seek video">{fmt(seg.start || 0)}</td>
                         <td className="px-3 py-2.5 text-zinc-500 font-mono">{fmt(seg.end || 0)}</td>
                         <td className="px-3 py-2.5">
                           <span className="text-amber-700 font-mono font-semibold text-[11px]">
