@@ -1940,7 +1940,14 @@ async def transcribe_segments(project_id: str, authorization: str = Header(None)
                 f.write(file_data)
 
             cmd = ["ffmpeg", "-y", "-i", input_path, "-vn", "-acodec", "pcm_s16le", "-ar", "16000", "-ac", "1", audio_path]
-            subprocess.run(cmd, capture_output=True)
+            result = subprocess.run(cmd, capture_output=True)
+            if result.returncode != 0 or not os.path.exists(audio_path) or os.path.getsize(audio_path) < 1000:
+                logger.error(f"FFmpeg audio extraction failed: {result.stderr[:300] if result.stderr else 'no output'}")
+                # Try alternate extraction method
+                cmd2 = ["ffmpeg", "-y", "-i", input_path, "-vn", "-ar", "16000", "-ac", "1", "-f", "wav", audio_path]
+                result2 = subprocess.run(cmd2, capture_output=True)
+                if result2.returncode != 0 or not os.path.exists(audio_path) or os.path.getsize(audio_path) < 1000:
+                    raise HTTPException(status_code=500, detail=f"Failed to extract audio from video. File may be corrupted or unsupported format.")
 
             stt = OpenAISpeechToText(api_key=EMERGENT_LLM_KEY)
             with open(audio_path, "rb") as audio_file:
